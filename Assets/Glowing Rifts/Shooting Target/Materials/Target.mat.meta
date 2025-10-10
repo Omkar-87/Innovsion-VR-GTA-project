@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: ece9648144db03e488fe6c0d2dc3b882
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 319790
+  packageName: Shooting Target
+  packageVersion: 1.0
+  assetPath: Assets/Glowing Rifts/Shooting Target/Materials/Target.mat
+  uploadId: 755560
