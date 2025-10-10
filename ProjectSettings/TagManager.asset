@@ -8,6 +8,7 @@ TagManager:
   - Left Hand
   - Right Hand
   - energy
+  - Enemy
   layers:
   - Default
   - TransparentFX
