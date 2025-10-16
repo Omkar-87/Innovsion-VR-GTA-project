@@ -1,22 +1,28 @@
+using Unity.Netcode;
 using UnityEngine;
 
-public class Health : MonoBehaviour
+public class Health : NetworkBehaviour
 {
     public int maxHealth = 100;
-    public int currentHealth;
+    public NetworkVariable<int> currentHealth = new NetworkVariable<int>(100);
+    //public int currentHealth;
 
     void Start()
     {
-        currentHealth = maxHealth;
+        //currentHealth = maxHealth;
     }
 
-    public void TakeDamage(int damageAmount)
+    public void TakeDamage (int damageAmount)
     {
-        currentHealth -= damageAmount;
+
+        if (!IsServer) return;
+
+        currentHealth.Value -= damageAmount;
+        
 
         Debug.Log(gameObject.name + " took " + damageAmount + " damage. Current health: " + currentHealth);
 
-        if (currentHealth <= 0)
+        if (currentHealth.Value <= 0)
         {
             Die();
         }
@@ -25,8 +31,6 @@ public class Health : MonoBehaviour
     void Die()
     {
         Debug.Log(gameObject.name + " has died.");
-        // For now, we just destroy the object.
-        // You could later add explosion effects, scoring, etc. here.
         Destroy(gameObject);
     }
 }

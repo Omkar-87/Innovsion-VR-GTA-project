@@ -1,8 +1,9 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 using System.Collections;
+using Unity.Netcode;
 
-public class GunController : MonoBehaviour
+public class GunController : NetworkBehaviour
 {
     // ... (all your existing variables are here) ...
     [Header("Shooting")]
@@ -12,15 +13,18 @@ public class GunController : MonoBehaviour
     public float maxDistance = 100f;
     public int damage = 10;
     private float nextFireTime = 0f;
+
     [Header("Recoil Settings")]
     public float recoilKickback = 0.05f;
     public float recoilUpKick = 5.0f;
     public float returnSpeed = 10f;
+
     [Header("Effects (Prefabs)")]
     public GameObject muzzleFlashPrefab;
     public GameObject impactEffectPrefab;
     [Tooltip("Specify time to destroy the effect objects")]
     public float destroyTimer = 2f;
+
     [Header("Haptic Feedback")]
     [Tooltip("Intensity of the controller vibration.")]
     [Range(0f, 1f)]
@@ -52,7 +56,8 @@ public class GunController : MonoBehaviour
 
     void Shoot()
     {
-        Debug.Log("Shoot() method called."); // DEBUG
+        if (!IsOwner) return;
+
         TriggerHaptics();
 
         // The rest of your shoot logic...
@@ -62,6 +67,7 @@ public class GunController : MonoBehaviour
             Destroy(tempFlash, destroyTimer);
         }
         RaycastHit hit;
+        Debug.Log("<color=magenta>Called from {id}</color>");
         if (firePoint != null && Physics.Raycast(firePoint.position, firePoint.forward, out hit, maxDistance))
         {
             if (impactEffectPrefab != null)
@@ -69,14 +75,36 @@ public class GunController : MonoBehaviour
                 GameObject impactInstance = Instantiate(impactEffectPrefab, hit.point, Quaternion.LookRotation(hit.normal));
                 Destroy(impactInstance, destroyTimer);
             }
+            Debug.Log("<color=green>Called from {id}</color>");
+
             Health targetHealth = hit.transform.GetComponent<Health>();
             if (targetHealth != null)
             {
-                targetHealth.TakeDamage(damage);
+                Debug.Log("<color=yellow>Hit</color> " + targetHealth.gameObject.name);
+                DealDamageServerRpc(targetHealth.GetComponent<NetworkObject>().NetworkObjectId, damage);
             }
         }
         transform.localPosition -= Vector3.forward * recoilKickback;
         transform.localRotation *= Quaternion.Euler(-recoilUpKick, 0, 0);
+    }
+
+    [ServerRpc]
+    private void DealDamageServerRpc(ulong targetId, int damage)
+    {
+        if (NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(targetId, out NetworkObject targetObject))
+        {
+            Debug.Log("<color=magenta>Hit with</color> " + targetId);
+            if (targetObject != null)
+            {
+                Health targetHealth = targetObject.GetComponent<Health>();
+                if (targetHealth != null)
+                {
+                    ulong id = NetworkManager.Singleton.LocalClientId;
+                    Debug.Log($"<color=red>Server dealing damage, called from client {id}</color>");
+                    targetHealth.TakeDamage(damage);
+                }
+            }
+        }
     }
 
     private void TriggerHaptics()
