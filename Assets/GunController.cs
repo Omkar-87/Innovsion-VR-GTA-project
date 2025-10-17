@@ -6,7 +6,9 @@ using Unity.Netcode;
 public class GunController : NetworkBehaviour
 {
     // ... (all your existing variables are here) ...
+
     [Header("Shooting")]
+    public Camera mainCamera;
     public Transform firePoint;
     public InputActionProperty shootAction;
     public float fireRate = 1f;
@@ -58,32 +60,63 @@ public class GunController : NetworkBehaviour
     {
         if (!IsOwner) return;
 
+        // --- NEW: Safety check for the camera ---
+        if (mainCamera == null)
+        {
+            Debug.LogError("Main Camera is not assigned in GunController!");
+            return;
+        }
+
         TriggerHaptics();
 
-        // The rest of your shoot logic...
+        // Muzzle flash logic is fine as-is
         if (muzzleFlashPrefab != null && firePoint != null)
         {
             GameObject tempFlash = Instantiate(muzzleFlashPrefab, firePoint.position, firePoint.rotation, firePoint);
             Destroy(tempFlash, destroyTimer);
         }
-        RaycastHit hit;
-        Debug.Log("<color=magenta>Called from {id}</color>");
-        if (firePoint != null && Physics.Raycast(firePoint.position, firePoint.forward, out hit, maxDistance))
+
+        // --- NEW: Center-Screen Raycast Logic ---
+
+        // 1. Find the target point by raycasting from the center of the camera
+        RaycastHit cameraHit;
+        Vector3 targetPoint;
+        if (Physics.Raycast(mainCamera.transform.position, mainCamera.transform.forward, out cameraHit, maxDistance))
         {
+            targetPoint = cameraHit.point; // We hit something
+        }
+        else
+        {
+            targetPoint = mainCamera.transform.position + mainCamera.transform.forward * maxDistance; // We hit nothing, aim into the distance
+        }
+
+        // 2. Calculate the direction from the gun's firePoint to the camera's targetPoint
+        Vector3 shootDirection = (targetPoint - firePoint.position).normalized;
+
+        // 3. Fire the actual "bullet" raycast from the gun's firePoint in the new direction
+        RaycastHit gunHit;
+        Debug.Log("<color=magenta>Called from {id}</color>");
+        if (firePoint != null && Physics.Raycast(firePoint.position, shootDirection, out gunHit, maxDistance))
+        {
+            // This is the *actual* hit, apply effects and damage
             if (impactEffectPrefab != null)
             {
-                GameObject impactInstance = Instantiate(impactEffectPrefab, hit.point, Quaternion.LookRotation(hit.normal));
+                GameObject impactInstance = Instantiate(impactEffectPrefab, gunHit.point, Quaternion.LookRotation(gunHit.normal));
                 Destroy(impactInstance, destroyTimer);
             }
             Debug.Log("<color=green>Called from {id}</color>");
 
-            Health targetHealth = hit.transform.GetComponent<Health>();
+            Health targetHealth = gunHit.transform.GetComponent<Health>();
             if (targetHealth != null)
             {
                 Debug.Log("<color=yellow>Hit</color> " + targetHealth.gameObject.name);
                 DealDamageServerRpc(targetHealth.GetComponent<NetworkObject>().NetworkObjectId, damage);
             }
         }
+
+        // --- END OF NEW LOGIC ---
+
+        // Recoil logic is fine as-is
         transform.localPosition -= Vector3.forward * recoilKickback;
         transform.localRotation *= Quaternion.Euler(-recoilUpKick, 0, 0);
     }
