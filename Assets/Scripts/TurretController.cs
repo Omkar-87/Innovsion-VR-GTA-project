@@ -17,34 +17,29 @@ public class TurretController : MonoBehaviour
 
     void Update()
     {
-        // 1. Read the full Vector2 value from the thumbstick
         Vector2 input = thumbstickAction.action.ReadValue<Vector2>();
 
-        // 2. Read Turn Input (Left/Right) from the .x value
+        // Read Turn Input (Left/Right) from the x value
         float turnInput = input.x;
         transform.Rotate(Vector3.up, turnInput * turnSpeed * Time.deltaTime);
 
-        // 3. Read Pitch Input (Up/Down) from the .y value
+        // Read Pitch Input (Up/Down) from the y value
         float pitchInput = input.y;
 
-        // 4. Calculate and clamp the pitch
         currentPitch += -pitchInput * pitchSpeed * Time.deltaTime;
         currentPitch = Mathf.Clamp(currentPitch, minPitch, maxPitch);
 
-        // 5. Apply the pitch rotation
         ApplyPitchToChildren(currentPitch);
     }
 
     void ApplyPitchToChildren(float pitch)
     { 
-        // Find all the children that need to tilt
         Transform aimTarget = transform.Find("AimTarget");
         Transform cameraOffset = transform.Find("Camera Offset");
         Transform cockpit = transform.Find("FirstPerson_Cockpit");
         Transform gunLeft = transform.Find("M1911 Handgun Left");
         Transform gunRight = transform.Find("M1911 Handgun Right");
 
-        // Apply the pitch rotation
         Quaternion pitchRotation = Quaternion.Euler(pitch, 0, 0);
         if (aimTarget != null) aimTarget.localRotation = pitchRotation;
         if (cameraOffset != null) cameraOffset.localRotation = pitchRotation;

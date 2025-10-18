@@ -25,17 +25,11 @@ public class ViewManager : NetworkBehaviour
         }
         else
         {
-            // I am not the owner.
-            // 1. Hide this player's cockpit and first-person items from me.
             firstPersonView.SetActive(false);
-
-            // 2. Make sure their mech is on the "RemotePlayerMech" layer
-            // (which my camera is set to show).
             SetLayerRecursively(thirdPersonView, remotePlayerMechLayer);
         }
     }
 
-    // Helper function to set the layer for an object and all its children
     private void SetLayerRecursively(GameObject obj, int layer)
     {
         if (obj == null) return;
