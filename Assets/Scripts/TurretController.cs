@@ -21,7 +21,7 @@ public class TurretController : MonoBehaviour
 
         // Read Turn Input (Left/Right) from the x value
         float turnInput = input.x;
-        transform.Rotate(Vector3.up, turnInput * turnSpeed * Time.deltaTime);
+        transform.parent.Rotate(Vector3.up, turnInput * turnSpeed * Time.deltaTime);
 
         // Read Pitch Input (Up/Down) from the y value
         float pitchInput = input.y;
