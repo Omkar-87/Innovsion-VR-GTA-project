@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: e4fc6d2e0091e3d45b1d0cec82963dfa
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 120259
+  packageName: HUD for VR - Sterile Future
+  packageVersion: 1.0
+  assetPath: Assets/VR HUD - Sterile Future/Scripts/angleToHUD.cs
+  uploadId: 251562

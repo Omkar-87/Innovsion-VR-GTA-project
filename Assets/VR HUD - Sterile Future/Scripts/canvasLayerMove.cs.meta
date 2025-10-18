@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 6c8be76f8df0a684cbe0999c81e5c8f4
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 120259
+  packageName: HUD for VR - Sterile Future
+  packageVersion: 1.0
+  assetPath: Assets/VR HUD - Sterile Future/Scripts/canvasLayerMove.cs
+  uploadId: 251562

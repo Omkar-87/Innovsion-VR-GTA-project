@@ -2,19 +2,25 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using System.Collections;
 using Unity.Netcode;
-using UnityEngine.Animations; // Note: This 'using' statement is not actually used in this script.
 
 public class GunController : NetworkBehaviour
 {
     [Header("Shooting")]
-    public Transform aimTarget; // CHANGED: This is the critical part
-    public LayerMask shootableLayers; // ADDED: Make sure to set this in the Inspector
+    public Transform aimTarget;
+    public LayerMask shootableLayers;
     public Transform firePoint;
     public InputActionProperty shootAction;
     public float fireRate = 1f;
     public float maxDistance = 100f;
     public int damage = 10;
     private float nextFireTime = 0f;
+
+    [Header("Ammo")]
+    public int maxAmmo = 30;
+    public int currentAmmo; // Made public to be accessed by UI
+    public float reloadTime = 1.5f;
+    public InputActionProperty reloadAction;
+    private bool isReloading = false;
 
     [Header("Recoil Settings")]
     public float recoilKickback = 0.05f;
@@ -34,23 +40,47 @@ public class GunController : NetworkBehaviour
     private Coroutine stopRumbleCoroutine;
     private Vector3 originalPosition;
     private Quaternion originalRotation;
-    // --- End of variables ---
 
     void Start()
     {
+        currentAmmo = maxAmmo;
         originalPosition = transform.localPosition;
         originalRotation = transform.localRotation;
     }
 
+    // Called when the object becomes enabled and active.
+    void OnEnable()
+    {
+        isReloading = false;
+    }
+
     void Update()
     {
-        // Only the owner can shoot
         if (!IsOwner) return;
 
+        // If reloading, nothing else can happen.
+        if (isReloading) return;
+
+        // Check for reload input if current ammo is less than max.
+        if (reloadAction.action.WasPressedThisFrame() && currentAmmo < maxAmmo)
+        {
+            StartCoroutine(Reload());
+            return; // Exit update early to prevent shooting while starting to reload.
+        }
+
+        // Check for shooting input.
         if (shootAction.action.IsPressed() && Time.time >= nextFireTime)
         {
-            nextFireTime = Time.time + 1f / fireRate;
-            Shoot();
+            if (currentAmmo > 0)
+            {
+                nextFireTime = Time.time + 1f / fireRate;
+                Shoot();
+            }
+            else
+            {
+                // Optional: Play an "empty clip" sound here.
+                Debug.Log("Out of ammo!");
+            }
         }
 
         // Recoil return
@@ -58,9 +88,25 @@ public class GunController : NetworkBehaviour
         transform.localRotation = Quaternion.Slerp(transform.localRotation, originalRotation, Time.deltaTime * returnSpeed);
     }
 
+    IEnumerator Reload()
+    {
+        isReloading = true;
+        Debug.Log("Reloading...");
+
+        // You can trigger a reload animation here.
+
+        yield return new WaitForSeconds(reloadTime);
+
+        currentAmmo = maxAmmo;
+        isReloading = false;
+    }
+
     void Shoot()
     {
-        if (!IsOwner) return;
+        // Safety checks
+        if (!IsOwner || currentAmmo <= 0 || isReloading) return;
+
+        currentAmmo--; // Decrease ammo count.
 
         if (aimTarget == null)
         {
@@ -70,22 +116,23 @@ public class GunController : NetworkBehaviour
 
         TriggerHaptics();
 
+        // Muzzle Flash
         if (muzzleFlashPrefab != null && firePoint != null)
         {
             GameObject tempFlash = Instantiate(muzzleFlashPrefab, firePoint.position, firePoint.rotation, firePoint);
             Destroy(tempFlash, destroyTimer);
         }
 
-
+        // Raycasting logic
         RaycastHit aimHit;
         Vector3 targetPoint;
         if (Physics.Raycast(aimTarget.position, aimTarget.forward, out aimHit, maxDistance, shootableLayers))
         {
-            targetPoint = aimHit.point; // We hit something
+            targetPoint = aimHit.point;
         }
         else
         {
-            targetPoint = aimTarget.position + aimTarget.forward * maxDistance; // We hit nothing, aim into the distance
+            targetPoint = aimTarget.position + aimTarget.forward * maxDistance;
         }
 
         Vector3 shootDirection = (targetPoint - firePoint.position).normalized;
@@ -99,15 +146,12 @@ public class GunController : NetworkBehaviour
                 Destroy(impactInstance, destroyTimer);
             }
 
-            Debug.Log(gunHit.transform.name);
             Health targetHealth = gunHit.transform.GetComponent<Health>();
             if (targetHealth != null)
             {
-                Debug.Log("<color=yellow>Hit</color> " + targetHealth.gameObject.name);
                 DealDamageServerRpc(targetHealth.GetComponent<NetworkObject>().NetworkObjectId, damage);
             }
         }
-        // --- End of new logic ---
 
         // Apply recoil
         transform.localPosition -= Vector3.forward * recoilKickback;
@@ -119,14 +163,11 @@ public class GunController : NetworkBehaviour
     {
         if (NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(targetId, out NetworkObject targetObject))
         {
-            Debug.Log("<color=magenta>Hit with</color> " + targetId);
             if (targetObject != null)
             {
                 Health targetHealth = targetObject.GetComponent<Health>();
                 if (targetHealth != null)
                 {
-                    ulong id = NetworkManager.Singleton.LocalClientId;
-                    Debug.Log($"<color=red>Server dealing damage, called from client {id}</color>");
                     targetHealth.TakeDamage(damage);
                 }
             }

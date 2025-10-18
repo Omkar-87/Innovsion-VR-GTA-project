@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 5f8e6d70db162ba4395c391eaf461cdd
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 120259
+  packageName: HUD for VR - Sterile Future
+  packageVersion: 1.0
+  assetPath: Assets/VR HUD - Sterile Future/SceneAssets/Objects.mat
+  uploadId: 251562
