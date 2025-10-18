@@ -2,13 +2,13 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using System.Collections;
 using Unity.Netcode;
+using UnityEngine.Animations; // Note: This 'using' statement is not actually used in this script.
 
 public class GunController : NetworkBehaviour
 {
-    // ... (all your existing variables are here) ...
-
     [Header("Shooting")]
-    public Camera mainCamera;
+    public Transform aimTarget; // CHANGED: This is the critical part
+    public LayerMask shootableLayers; // ADDED: Make sure to set this in the Inspector
     public Transform firePoint;
     public InputActionProperty shootAction;
     public float fireRate = 1f;
@@ -28,10 +28,8 @@ public class GunController : NetworkBehaviour
     public float destroyTimer = 2f;
 
     [Header("Haptic Feedback")]
-    [Tooltip("Intensity of the controller vibration.")]
     [Range(0f, 1f)]
     public float hapticIntensity = 0.6f;
-    [Tooltip("Duration of the controller vibration.")]
     public float hapticDuration = 0.1f;
     private Coroutine stopRumbleCoroutine;
     private Vector3 originalPosition;
@@ -46,12 +44,16 @@ public class GunController : NetworkBehaviour
 
     void Update()
     {
+        // Only the owner can shoot
+        if (!IsOwner) return;
+
         if (shootAction.action.IsPressed() && Time.time >= nextFireTime)
         {
             nextFireTime = Time.time + 1f / fireRate;
             Shoot();
         }
 
+        // Recoil return
         transform.localPosition = Vector3.Lerp(transform.localPosition, originalPosition, Time.deltaTime * returnSpeed);
         transform.localRotation = Quaternion.Slerp(transform.localRotation, originalRotation, Time.deltaTime * returnSpeed);
     }
@@ -60,52 +62,44 @@ public class GunController : NetworkBehaviour
     {
         if (!IsOwner) return;
 
-        // --- NEW: Safety check for the camera ---
-        if (mainCamera == null)
+        if (aimTarget == null)
         {
-            Debug.LogError("Main Camera is not assigned in GunController!");
+            Debug.LogError("Aim Target is not assigned in GunController!");
             return;
         }
 
         TriggerHaptics();
 
-        // Muzzle flash logic is fine as-is
         if (muzzleFlashPrefab != null && firePoint != null)
         {
             GameObject tempFlash = Instantiate(muzzleFlashPrefab, firePoint.position, firePoint.rotation, firePoint);
             Destroy(tempFlash, destroyTimer);
         }
 
-        // --- NEW: Center-Screen Raycast Logic ---
 
-        // 1. Find the target point by raycasting from the center of the camera
-        RaycastHit cameraHit;
+        RaycastHit aimHit;
         Vector3 targetPoint;
-        if (Physics.Raycast(mainCamera.transform.position, mainCamera.transform.forward, out cameraHit, maxDistance))
+        if (Physics.Raycast(aimTarget.position, aimTarget.forward, out aimHit, maxDistance, shootableLayers))
         {
-            targetPoint = cameraHit.point; // We hit something
+            targetPoint = aimHit.point; // We hit something
         }
         else
         {
-            targetPoint = mainCamera.transform.position + mainCamera.transform.forward * maxDistance; // We hit nothing, aim into the distance
+            targetPoint = aimTarget.position + aimTarget.forward * maxDistance; // We hit nothing, aim into the distance
         }
 
-        // 2. Calculate the direction from the gun's firePoint to the camera's targetPoint
         Vector3 shootDirection = (targetPoint - firePoint.position).normalized;
 
-        // 3. Fire the actual "bullet" raycast from the gun's firePoint in the new direction
         RaycastHit gunHit;
-        Debug.Log("<color=magenta>Called from {id}</color>");
-        if (firePoint != null && Physics.Raycast(firePoint.position, shootDirection, out gunHit, maxDistance))
+        if (firePoint != null && Physics.Raycast(firePoint.position, shootDirection, out gunHit, maxDistance, shootableLayers))
         {
-            // This is the *actual* hit, apply effects and damage
             if (impactEffectPrefab != null)
             {
                 GameObject impactInstance = Instantiate(impactEffectPrefab, gunHit.point, Quaternion.LookRotation(gunHit.normal));
                 Destroy(impactInstance, destroyTimer);
             }
-            Debug.Log("<color=green>Called from {id}</color>");
 
+            Debug.Log(gunHit.transform.name);
             Health targetHealth = gunHit.transform.GetComponent<Health>();
             if (targetHealth != null)
             {
@@ -113,10 +107,9 @@ public class GunController : NetworkBehaviour
                 DealDamageServerRpc(targetHealth.GetComponent<NetworkObject>().NetworkObjectId, damage);
             }
         }
+        // --- End of new logic ---
 
-        // --- END OF NEW LOGIC ---
-
-        // Recoil logic is fine as-is
+        // Apply recoil
         transform.localPosition -= Vector3.forward * recoilKickback;
         transform.localRotation *= Quaternion.Euler(-recoilUpKick, 0, 0);
     }
@@ -140,38 +133,22 @@ public class GunController : NetworkBehaviour
         }
     }
 
+    // --- Haptics Functions ---
     private void TriggerHaptics()
     {
-        Debug.Log("TriggerHaptics() called."); // DEBUG
-
         var device = shootAction.action.activeControl?.device;
-
-        if (device == null)
-        {
-            Debug.LogWarning("Haptics failed: Device is null. Is the shootAction assigned in the Inspector?"); // DEBUG
-            return;
-        }
-
-        // --- THIS IS THE MOST IMPORTANT CHECK ---
         if (device is Gamepad gamepad)
         {
-            Debug.Log("Device is a Gamepad: " + gamepad.displayName); // DEBUG
             if (stopRumbleCoroutine != null)
             {
                 StopCoroutine(stopRumbleCoroutine);
             }
             stopRumbleCoroutine = StartCoroutine(RumbleCoroutine(gamepad, hapticIntensity, hapticDuration));
         }
-        else
-        {
-            // If this message appears, your controller is NOT being seen as a "Gamepad"
-            Debug.LogWarning("Haptics failed: Device is NOT a Gamepad. Device type is: " + device.GetType().Name); // DEBUG
-        }
     }
 
     private IEnumerator RumbleCoroutine(Gamepad gamepad, float intensity, float duration)
     {
-        Debug.Log("RumbleCoroutine started with intensity " + intensity + " for " + duration + "s."); // DEBUG
         gamepad.SetMotorSpeeds(intensity, intensity);
         yield return new WaitForSeconds(duration);
         gamepad.SetMotorSpeeds(0f, 0f);

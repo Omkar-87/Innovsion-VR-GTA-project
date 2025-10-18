@@ -3,30 +3,24 @@ using UnityEngine;
 
 public class ViewManager : NetworkBehaviour
 {
-    // Drag your "FirstPerson_View" GameObject here
     public GameObject firstPersonView;
 
-    // Drag your "ThirdPerson_View" GameObject here
     public GameObject thirdPersonView;
 
-    // We'll store the layer numbers here
-    private int localPlayerMechLayer;
-    private int remotePlayerMechLayer;
+    public int localPlayerMechLayer;
+    public int remotePlayerMechLayer;
 
     void Start()
     {
-        // Get the integer values for our layer names
-        localPlayerMechLayer = LayerMask.NameToLayer("LocalPlayerMech");
-        remotePlayerMechLayer = LayerMask.NameToLayer("RemotePlayerMech");
+        //localPlayerMechLayer = LayerMask.NameToLayer("LocalPlayerMech");
+        //remotePlayerMechLayer = LayerMask.NameToLayer("RemotePlayerMech");
     }
 
     public override void OnNetworkSpawn()
     {
         if (IsOwner)
         {
-            // I am the owner.
-            // Move my third-person mech to the "LocalPlayerMech" layer,
-            // which my camera is set to hide.
+            Debug.Log("Moving to layer " + localPlayerMechLayer);
             SetLayerRecursively(thirdPersonView, localPlayerMechLayer);
         }
         else
