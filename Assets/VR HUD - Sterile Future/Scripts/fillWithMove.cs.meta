@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: f45385bb5683f6b45aae58bf16dbd638
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 120259
+  packageName: HUD for VR - Sterile Future
+  packageVersion: 1.0
+  assetPath: Assets/VR HUD - Sterile Future/Scripts/fillWithMove.cs
+  uploadId: 251562

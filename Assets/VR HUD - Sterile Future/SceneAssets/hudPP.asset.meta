@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 82af1785af6e84c42a9e221074ada5ab
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 120259
+  packageName: HUD for VR - Sterile Future
+  packageVersion: 1.0
+  assetPath: Assets/VR HUD - Sterile Future/SceneAssets/hudPP.asset
+  uploadId: 251562

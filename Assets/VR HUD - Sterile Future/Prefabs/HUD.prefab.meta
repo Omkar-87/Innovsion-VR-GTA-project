@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 949cac64006073b489556d076d0c3696
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 120259
+  packageName: HUD for VR - Sterile Future
+  packageVersion: 1.0
+  assetPath: Assets/VR HUD - Sterile Future/Prefabs/HUD.prefab
+  uploadId: 251562
