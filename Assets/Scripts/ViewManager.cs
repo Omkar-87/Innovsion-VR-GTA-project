@@ -20,7 +20,6 @@ public class ViewManager : NetworkBehaviour
     {
         if (IsOwner)
         {
-            Debug.Log("Moving to layer " + localPlayerMechLayer);
             SetLayerRecursively(thirdPersonView, localPlayerMechLayer);
         }
         else

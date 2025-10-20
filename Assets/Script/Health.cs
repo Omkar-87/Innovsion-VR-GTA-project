@@ -1,6 +1,7 @@
 using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 
 public class Health : NetworkBehaviour
 {
@@ -11,7 +12,13 @@ public class Health : NetworkBehaviour
     public int maxHealth = 100;
     public NetworkVariable<int> currentHealth = new NetworkVariable<int>(100);
 
-
+    public Slider healtbarFP;
+    public Slider healthbarTP;
+    private void Update()
+    {
+        healtbarFP.value = currentHealth.Value;
+        healthbarTP.value = currentHealth.Value;
+    }
     public void TakeDamage(int damageAmount)
     {
         if (!IsServer) return;
