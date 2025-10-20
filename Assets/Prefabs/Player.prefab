@@ -5321,6 +5321,38 @@ Transform:
   - {fileID: 64015419040547079}
   m_Father: {fileID: 6430758664226687655}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &711113963108998880
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1303999630666999377}
+  m_Layer: 0
+  m_Name: ShakeGO
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1303999630666999377
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 711113963108998880}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 3203572352147971927}
+  m_Father: {fileID: 8432600678904731402}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &712746251547097084
 GameObject:
   m_ObjectHideFlags: 0
@@ -12011,16 +12043,16 @@ MonoBehaviour:
   maxDistance: 100
   damage: 2
   maxAmmo: 50
-  currentAmmo:
-    m_InternalValue: 0
+  currentAmmo: 0
   reloadTime: 1.5
   recoilKickback: 0.05
   recoilUpKick: 5
   returnSpeed: 10
   bobSpeed: 2
   bobAmount: 0.005
+  shakeOffsetTransform: {fileID: 1303999630666999377}
   shakeDuration: 0.08
-  shakeMagnitude: 5
+  shakeMagnitude: 0.01
   muzzleFlashPrefab: {fileID: 1782395880954752, guid: b47e0a28928b0704890c46f832d04c77, type: 3}
   impactEffectPrefab: {fileID: 100006, guid: 7c442b9b6852b8a4f93306f3d154d471, type: 3}
   destroyTimer: 1
@@ -19095,7 +19127,7 @@ Transform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 3203572352147971927}
+  - {fileID: 1303999630666999377}
   - {fileID: 9220034606299164191}
   - {fileID: 3244523965621448550}
   - {fileID: 985704540787621723}
@@ -22218,12 +22250,12 @@ Transform:
   m_GameObject: {fileID: 7028865967746646937}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 0.07, z: -0.61}
+  m_LocalPosition: {x: 0, y: 0.070000134, z: -0.60999995}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 6351117918633447139}
-  m_Father: {fileID: 8432600678904731402}
+  m_Father: {fileID: 1303999630666999377}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!20 &242760732440591776
 Camera:
@@ -29183,16 +29215,16 @@ MonoBehaviour:
   maxDistance: 100
   damage: 2
   maxAmmo: 50
-  currentAmmo:
-    m_InternalValue: 0
+  currentAmmo: 0
   reloadTime: 1.5
   recoilKickback: 0.05
   recoilUpKick: 5
   returnSpeed: 10
   bobSpeed: 2
   bobAmount: 0.005
+  shakeOffsetTransform: {fileID: 1303999630666999377}
   shakeDuration: 0.08
-  shakeMagnitude: 5
+  shakeMagnitude: 0.01
   muzzleFlashPrefab: {fileID: 1782395880954752, guid: b47e0a28928b0704890c46f832d04c77, type: 3}
   impactEffectPrefab: {fileID: 100006, guid: 7c442b9b6852b8a4f93306f3d154d471, type: 3}
   destroyTimer: 1
