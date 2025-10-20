@@ -1,3 +1,4 @@
+using System.Collections;
 using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -12,8 +13,11 @@ public class Health : NetworkBehaviour
     public int maxHealth = 100;
     public NetworkVariable<int> currentHealth = new NetworkVariable<int>(100);
 
+    [Header("UI")]
     public Slider healtbarFP;
     public Slider healthbarTP;
+    public Image hitEffect;
+
     private void Update()
     {
         healtbarFP.value = currentHealth.Value;
@@ -27,10 +31,23 @@ public class Health : NetworkBehaviour
         currentHealth.Value -= damageAmount;
 
         Debug.Log($"{gameObject.name} took {damageAmount} damage. Current health: {currentHealth.Value}");
-
+        StartCoroutine(ShowHitEffect());
         if (currentHealth.Value <= 0)
         {
             Die();
+        }
+    }
+
+    IEnumerator ShowHitEffect()
+    {
+        hitEffect.color = new Color(hitEffect.color.r, hitEffect.color.g, hitEffect.color.b, 1.0f);
+        yield return new WaitForSeconds(0.7f);
+        float t = 1.0f;
+        while (t >= 0.0f)
+        {
+            t -= 0.2f;
+            yield return new WaitForSeconds(0.1f);
+            hitEffect.color = new Color(hitEffect.color.r, hitEffect.color.g, hitEffect.color.b, Mathf.Max(0.0f, t));
         }
     }
 
