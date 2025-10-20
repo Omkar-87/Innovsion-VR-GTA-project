@@ -1,116 +1,195 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 using System.Collections;
+using Unity.Netcode;
 
-public class GunController : MonoBehaviour
+public class GunController : NetworkBehaviour
 {
-    // ... (all your existing variables are here) ...
     [Header("Shooting")]
+    public Transform aimTarget;
+    public LayerMask shootableLayers;
     public Transform firePoint;
     public InputActionProperty shootAction;
     public float fireRate = 1f;
     public float maxDistance = 100f;
     public int damage = 10;
     private float nextFireTime = 0f;
+
+    [Header("Ammo")]
+    public int maxAmmo = 30;
+    public int currentAmmo; // Made public to be accessed by UI
+    public float reloadTime = 1.5f;
+    public InputActionProperty reloadAction;
+    private bool isReloading = false;
+
     [Header("Recoil Settings")]
     public float recoilKickback = 0.05f;
     public float recoilUpKick = 5.0f;
     public float returnSpeed = 10f;
+
     [Header("Effects (Prefabs)")]
     public GameObject muzzleFlashPrefab;
     public GameObject impactEffectPrefab;
     [Tooltip("Specify time to destroy the effect objects")]
     public float destroyTimer = 2f;
+
     [Header("Haptic Feedback")]
-    [Tooltip("Intensity of the controller vibration.")]
     [Range(0f, 1f)]
     public float hapticIntensity = 0.6f;
-    [Tooltip("Duration of the controller vibration.")]
     public float hapticDuration = 0.1f;
     private Coroutine stopRumbleCoroutine;
     private Vector3 originalPosition;
     private Quaternion originalRotation;
-    // --- End of variables ---
 
     void Start()
     {
+        currentAmmo = maxAmmo;
         originalPosition = transform.localPosition;
         originalRotation = transform.localRotation;
     }
 
+    // Called when the object becomes enabled and active.
+    void OnEnable()
+    {
+        isReloading = false;
+    }
+
     void Update()
     {
-        if (shootAction.action.IsPressed() && Time.time >= nextFireTime)
+        if (!IsOwner) return;
+
+        // If reloading, nothing else can happen.
+        if (isReloading) return;
+
+        // Check for reload input if current ammo is less than max.
+        if (reloadAction.action.WasPressedThisFrame() && currentAmmo < maxAmmo)
         {
-            nextFireTime = Time.time + 1f / fireRate;
-            Shoot();
+            StartCoroutine(Reload());
+            return; // Exit update early to prevent shooting while starting to reload.
         }
 
+        // Check for shooting input.
+        if (shootAction.action.IsPressed() && Time.time >= nextFireTime)
+        {
+            if (currentAmmo > 0)
+            {
+                nextFireTime = Time.time + 1f / fireRate;
+                Shoot();
+            }
+            else
+            {
+                // Optional: Play an "empty clip" sound here.
+                Debug.Log("Out of ammo!");
+            }
+        }
+
+        // Recoil return
         transform.localPosition = Vector3.Lerp(transform.localPosition, originalPosition, Time.deltaTime * returnSpeed);
         transform.localRotation = Quaternion.Slerp(transform.localRotation, originalRotation, Time.deltaTime * returnSpeed);
     }
 
+    IEnumerator Reload()
+    {
+        isReloading = true;
+        Debug.Log("Reloading...");
+
+        // You can trigger a reload animation here.
+
+        yield return new WaitForSeconds(reloadTime);
+
+        currentAmmo = maxAmmo;
+        isReloading = false;
+    }
+
     void Shoot()
     {
-        Debug.Log("Shoot() method called."); // DEBUG
+        // Safety checks
+        if (!IsOwner || currentAmmo <= 0 || isReloading) return;
+
+        currentAmmo--; // Decrease ammo count.
+
+        if (aimTarget == null)
+        {
+            Debug.LogError("Aim Target is not assigned in GunController!");
+            return;
+        }
+
         TriggerHaptics();
 
-        // The rest of your shoot logic...
+        // Muzzle Flash
         if (muzzleFlashPrefab != null && firePoint != null)
         {
             GameObject tempFlash = Instantiate(muzzleFlashPrefab, firePoint.position, firePoint.rotation, firePoint);
             Destroy(tempFlash, destroyTimer);
         }
-        RaycastHit hit;
-        if (firePoint != null && Physics.Raycast(firePoint.position, firePoint.forward, out hit, maxDistance))
+
+        // Raycasting logic
+        RaycastHit aimHit;
+        Vector3 targetPoint;
+        if (Physics.Raycast(aimTarget.position, aimTarget.forward, out aimHit, maxDistance, shootableLayers))
+        {
+            targetPoint = aimHit.point;
+        }
+        else
+        {
+            targetPoint = aimTarget.position + aimTarget.forward * maxDistance;
+        }
+
+        Vector3 shootDirection = (targetPoint - firePoint.position).normalized;
+
+        RaycastHit gunHit;
+        if (firePoint != null && Physics.Raycast(firePoint.position, shootDirection, out gunHit, maxDistance, shootableLayers))
         {
             if (impactEffectPrefab != null)
             {
-                GameObject impactInstance = Instantiate(impactEffectPrefab, hit.point, Quaternion.LookRotation(hit.normal));
+                GameObject impactInstance = Instantiate(impactEffectPrefab, gunHit.point, Quaternion.LookRotation(gunHit.normal));
                 Destroy(impactInstance, destroyTimer);
             }
-            Health targetHealth = hit.transform.GetComponent<Health>();
+
+            Health targetHealth = gunHit.transform.GetComponent<Health>();
             if (targetHealth != null)
             {
-                targetHealth.TakeDamage(damage);
+                DealDamageServerRpc(targetHealth.GetComponent<NetworkObject>().NetworkObjectId, damage);
             }
         }
+
+        // Apply recoil
         transform.localPosition -= Vector3.forward * recoilKickback;
         transform.localRotation *= Quaternion.Euler(-recoilUpKick, 0, 0);
     }
 
+    [ServerRpc]
+    private void DealDamageServerRpc(ulong targetId, int damage)
+    {
+        if (NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(targetId, out NetworkObject targetObject))
+        {
+            if (targetObject != null)
+            {
+                Health targetHealth = targetObject.GetComponent<Health>();
+                if (targetHealth != null)
+                {
+                    targetHealth.TakeDamage(damage);
+                }
+            }
+        }
+    }
+
+    // --- Haptics Functions ---
     private void TriggerHaptics()
     {
-        Debug.Log("TriggerHaptics() called."); // DEBUG
-
         var device = shootAction.action.activeControl?.device;
-
-        if (device == null)
-        {
-            Debug.LogWarning("Haptics failed: Device is null. Is the shootAction assigned in the Inspector?"); // DEBUG
-            return;
-        }
-
-        // --- THIS IS THE MOST IMPORTANT CHECK ---
         if (device is Gamepad gamepad)
         {
-            Debug.Log("Device is a Gamepad: " + gamepad.displayName); // DEBUG
             if (stopRumbleCoroutine != null)
             {
                 StopCoroutine(stopRumbleCoroutine);
             }
             stopRumbleCoroutine = StartCoroutine(RumbleCoroutine(gamepad, hapticIntensity, hapticDuration));
         }
-        else
-        {
-            // If this message appears, your controller is NOT being seen as a "Gamepad"
-            Debug.LogWarning("Haptics failed: Device is NOT a Gamepad. Device type is: " + device.GetType().Name); // DEBUG
-        }
     }
 
     private IEnumerator RumbleCoroutine(Gamepad gamepad, float intensity, float duration)
     {
-        Debug.Log("RumbleCoroutine started with intensity " + intensity + " for " + duration + "s."); // DEBUG
         gamepad.SetMotorSpeeds(intensity, intensity);
         yield return new WaitForSeconds(duration);
         gamepad.SetMotorSpeeds(0f, 0f);

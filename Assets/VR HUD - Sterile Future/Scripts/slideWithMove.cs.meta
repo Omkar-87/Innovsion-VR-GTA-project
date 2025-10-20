@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: ecb3ea78c37b99d4a9d41bce8ef91b0c
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 120259
+  packageName: HUD for VR - Sterile Future
+  packageVersion: 1.0
+  assetPath: Assets/VR HUD - Sterile Future/Scripts/slideWithMove.cs
+  uploadId: 251562
