@@ -1,38 +1,82 @@
-using System.Collections;
-using Unity.Netcode;
 using UnityEngine;
+using UnityEngine.UI;       
+using Unity.Netcode;
+using System.Collections;   
 using UnityEngine.SceneManagement;
-using UnityEngine.UI;
 
 public class Health : NetworkBehaviour
 {
-    [Header("Scene Settings")]
-    public string gameOverSceneName = "Round Over";
 
     [Header("Health Settings")]
     public int maxHealth = 100;
-    public NetworkVariable<int> currentHealth = new NetworkVariable<int>(100);
+    public NetworkVariable<int> currentHealth = new NetworkVariable<int>(100, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
-    [Header("UI")]
-    public Slider healtbarFP;
-    public Slider healthbarTP;
-    public Image hitEffect;
+    [Header("UI (Assign These in Inspector - Optional)")]
+    public Slider healtbarFP;    
+    public Slider healthbarTP;   
+    public Image hitEffect;      
 
-    private void Update()
+    public GameManager gameManager;
+    private Coroutine hitEffectCoroutine;
+
+    public void FindGameManager()
     {
-        healtbarFP.value = currentHealth.Value;
-        healthbarTP.value = currentHealth.Value;
+        gameManager = GameObject.FindGameObjectWithTag("GameController").GetComponent<GameManager>();
     }
+    public override void OnNetworkSpawn()
+    {
+        if (gameManager == null)
+        {
+            Debug.LogError($"[{gameObject.name}] GameManager component not found in scene!", this);
+        }
+
+        currentHealth.OnValueChanged += UpdateHealthUI;
+
+        UpdateHealthUI(currentHealth.Value, currentHealth.Value);
+
+        if (healtbarFP != null) healtbarFP.maxValue = maxHealth;
+        if (healthbarTP != null) healthbarTP.maxValue = maxHealth;
+    }
+
+    public override void OnNetworkDespawn()
+    {
+        if (currentHealth != null)
+        {
+            currentHealth.OnValueChanged -= UpdateHealthUI;
+        }
+    }
+
+    private void UpdateHealthUI(int previousValue, int newValue)
+    {
+        if (healtbarFP != null)
+        {
+            healtbarFP.value = newValue;
+        }
+        if (healthbarTP != null)
+        {
+            healthbarTP.value = newValue;
+        }
+
+        if (IsOwner && newValue < previousValue && newValue > 0 && hitEffect != null)
+        {
+            if (hitEffectCoroutine != null) StopCoroutine(hitEffectCoroutine);
+            hitEffectCoroutine = StartCoroutine(ShowHitEffect());
+        }
+    }
+
+
     public void TakeDamage(int damageAmount)
     {
-        if (!IsServer) return;
-        if (currentHealth.Value <= 0) return;
+        if (!IsServer || currentHealth.Value <= 0) return;
 
+        int previousHealth = currentHealth.Value;
         currentHealth.Value -= damageAmount;
 
-        Debug.Log($"{gameObject.name} took {damageAmount} damage. Current health: {currentHealth.Value}");
-        StartCoroutine(ShowHitEffect());
-        if (currentHealth.Value <= 0)
+        if (currentHealth.Value < 0) currentHealth.Value = 0;
+
+        Debug.Log($"{gameObject.name} (Owner: {OwnerClientId}) took {damageAmount} damage. New health: {currentHealth.Value}");
+
+        if (currentHealth.Value <= 0 && previousHealth > 0)
         {
             Die();
         }
@@ -40,52 +84,41 @@ public class Health : NetworkBehaviour
 
     IEnumerator ShowHitEffect()
     {
-        hitEffect.color = new Color(hitEffect.color.r, hitEffect.color.g, hitEffect.color.b, 1.0f);
-        yield return new WaitForSeconds(0.7f);
-        float t = 1.0f;
-        while (t >= 0.0f)
+        if (hitEffect == null) yield break;
+
+        hitEffect.color = new Color(1f, 0f, 0f, 0.4f);
+        float duration = 0.5f;
+        float elapsed = 0f;
+
+        while (elapsed < duration)
         {
-            t -= 0.2f;
-            yield return new WaitForSeconds(0.1f);
-            hitEffect.color = new Color(hitEffect.color.r, hitEffect.color.g, hitEffect.color.b, Mathf.Max(0.0f, t));
+            elapsed += Time.deltaTime;
+            float alpha = Mathf.Lerp(0.4f, 0f, elapsed / duration);
+            hitEffect.color = new Color(hitEffect.color.r, hitEffect.color.g, hitEffect.color.b, alpha);
+            yield return null;
         }
+        hitEffect.color = new Color(hitEffect.color.r, hitEffect.color.g, hitEffect.color.b, 0f);
+        hitEffectCoroutine = null;
     }
 
     void Die()
     {
-        Debug.Log($"{gameObject.name} has died. Triggering Game Over.");
+        Debug.Log($"{gameObject.name} (Owner: {OwnerClientId}) has died. Notifying GameManager.");
 
         if (IsServer)
         {
-            ulong losingPlayerId = OwnerClientId;
-
-            NotifyGameOverClientRpc(losingPlayerId);
-
-            StartCoroutine(LoadGameOverSceneAfterDelay());
+            if (gameManager != null)
+            {
+                gameManager.PlayerDied(OwnerClientId);
+            }
+            else
+            {
+                Debug.LogError($"[{gameObject.name}] Cannot notify GameManager of death - reference is null!");
+            }
         }
+
+        var collider = GetComponent<Collider>();
+        if (collider != null) collider.enabled = false;
     }
 
-    private System.Collections.IEnumerator LoadGameOverSceneAfterDelay()
-    {
-        yield return new WaitForSeconds(0.1f);
-        NetworkManager.Singleton.SceneManager.LoadScene(gameOverSceneName, LoadSceneMode.Single);
-    }
-
-
-    [ClientRpc]
-    private void NotifyGameOverClientRpc(ulong losingPlayerId)
-    {
-        bool localPlayerWon = NetworkManager.Singleton.LocalClientId != losingPlayerId;
-
-        GameResultData.DidWin = localPlayerWon;
-
-        Debug.Log($"Game Over! Local Client Won: {localPlayerWon}");
-
-    }
-}
-
-public static class GameResultData
-{
-    public static bool DidWin = false;
-    // public static float MatchTime = 0f; // timer
 }

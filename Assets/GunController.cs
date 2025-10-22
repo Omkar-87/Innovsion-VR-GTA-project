@@ -3,30 +3,29 @@ using UnityEngine.InputSystem;
 using System.Collections;
 using Unity.Netcode;
 
-// Ensure this script is on the GUN object itself (the one with the firePoint).
 public class GunController : NetworkBehaviour
 {
     [Header("Core References")]
-    public Transform aimTarget;            // Assign the object determining aim direction
-    public Transform firePoint;            // Assign the empty GameObject at the gun barrel's end
-    public Transform gunGraphicsTransform; // Drag the GUN's VISUAL MODEL/Mesh parent object here
-    public Camera mainCamera;              // Assign the player's main camera (optional, can find by tag)
+    public Transform aimTarget;            
+    public Transform firePoint;            
+    public Transform gunGraphicsTransform; 
+    public Camera mainCamera;              
 
     [Header("Input Actions")]
-    public InputActionProperty shootAction; // Assign your shoot input action reference
-    public InputActionProperty reloadAction; // Assign your reload input action reference
+    public InputActionProperty shootAction;
+    public InputActionProperty reloadAction;
 
     [Header("Shooting Stats")]
-    public LayerMask shootableLayers;   // Set this in Inspector (e.g., Everything except Player layer)
-    public float fireRate = 10f;        // Shots per second
+    public LayerMask shootableLayers;   
+    public float fireRate = 10f;        
     public float maxDistance = 100f;
-    public int damage = 2;              // Damage dealt per hit
+    public int damage = 2;              
 
     [Header("Ammo")]
     public int maxAmmo = 50;
-    public int currentAmmo;             // Local ammo count, not synced
+    public int currentAmmo;             
     public float reloadTime = 1.5f;
-    private bool isReloading = false;     // Local reload state
+    private bool isReloading = false;   
 
     [Header("Recoil (Applied to Graphics)")]
     public float recoilKickback = 0.03f;
@@ -39,15 +38,15 @@ public class GunController : NetworkBehaviour
     private Vector3 bobbingOffset = Vector3.zero;
 
     [Header("Camera Shake")]
-    public Transform shakeOffsetTransform; // <<< ADDED: Assign the 'ShakeOffset' empty GameObject here
+    public Transform shakeOffsetTransform;
     public float shakeDuration = 0.08f;
     public float shakeMagnitude = 0.005f;
     private Coroutine cameraShakeCoroutine;
 
     [Header("Effects (Prefabs)")]
-    public GameObject muzzleFlashPrefab; // Assign particle effect prefab
-    public GameObject impactEffectPrefab;  // Assign particle effect prefab
-    public float destroyTimer = 1.5f;     // How long effects last
+    public GameObject muzzleFlashPrefab; 
+    public GameObject impactEffectPrefab;
+    public float destroyTimer = 1.5f;    
 
     [Header("Haptic Feedback")]
     [Range(0f, 1f)]
@@ -59,17 +58,13 @@ public class GunController : NetworkBehaviour
     private float nextFireTime = 0f;
     private Vector3 graphicsOriginalLocalPosition;
     private Quaternion graphicsOriginalLocalRotation;
-    private Vector3 shakeOffsetOriginalLocalPosition = Vector3.zero; // Store shake offset original pos
-
-    // --- INITIALIZATION ---
+    private Vector3 shakeOffsetOriginalLocalPosition = Vector3.zero;
 
     void Start()
     {
-        // Initialize ammo locally
         currentAmmo = maxAmmo;
         isReloading = false;
 
-        // Cache original graphics transform if assigned
         if (gunGraphicsTransform != null)
         {
             graphicsOriginalLocalPosition = gunGraphicsTransform.localPosition;
@@ -80,17 +75,15 @@ public class GunController : NetworkBehaviour
             Debug.LogError($"[{gameObject.name}] Gun Graphics Transform is not assigned!", this);
         }
 
-        // Cache shake offset original position if assigned
         if (shakeOffsetTransform != null)
         {
             shakeOffsetOriginalLocalPosition = shakeOffsetTransform.localPosition;
         }
-        else if (IsOwner) // Only owner needs shake offset
+        else if (IsOwner)
         {
             Debug.LogError($"[{gameObject.name}] Shake Offset Transform is not assigned!", this);
         }
 
-        // Find main camera if not assigned (still useful for checks, even if shake uses offset)
         if (IsOwner && mainCamera == null)
         {
             mainCamera = Camera.main;
@@ -100,32 +93,25 @@ public class GunController : NetworkBehaviour
 
     void OnEnable()
     {
-        isReloading = false; // Reset reload state when enabled/respawned
+        isReloading = false;
     }
-
-    // --- UPDATE LOOP (Owner Only for Input/Visuals) ---
 
     void Update()
     {
-        // Only the owner processes input and local visual effects
         if (!IsOwner) return;
 
-        // Apply visual bobbing and recoil return locally
         ApplyBobbingAndRecoilReturn();
         HandleInput();
     }
 
-    // Separated input handling for clarity
     void HandleInput()
     {
-        // --- Handle Reloading Input ---
         if (!isReloading && currentAmmo < maxAmmo && reloadAction.action.WasPressedThisFrame())
         {
             StartCoroutine(Reload_Local());
             return;
         }
 
-        // --- Handle Shooting Input ---
         if (isReloading) return;
 
         if (shootAction.action.ReadValue<float>() > 0.1f && Time.time >= nextFireTime)
@@ -137,26 +123,21 @@ public class GunController : NetworkBehaviour
             }
             else if (currentAmmo <= 0)
             {
-                // Optional: Play empty clip sound locally
+                // EMPTY
             }
         }
     }
 
-    // --- CORE ACTIONS ---
-
-    // Called locally by the owner
     void Shoot()
     {
         if (gunGraphicsTransform == null || aimTarget == null || !IsSpawned || currentAmmo <= 0 || isReloading) return;
 
         currentAmmo--;
 
-        // --- Local Visuals & Feedback (Instant) ---
         TriggerHaptics();
-        TriggerCameraShake(); // This now shakes the offset object
+        TriggerCameraShake();
         ApplyRecoil();
 
-        // --- Determine Hit Info Locally ---
         RaycastHit aimHit;
         Vector3 targetPoint;
         if (Physics.Raycast(aimTarget.position, aimTarget.forward, out aimHit, maxDistance, shootableLayers))
@@ -189,26 +170,21 @@ public class GunController : NetworkBehaviour
             }
         }
 
-        // --- Request Server Actions ---
         ShootServerRpc(didHit, hitPoint, Quaternion.LookRotation(hitNormal), hitTargetId);
     }
 
-    // Local sequence for reloading
     IEnumerator Reload_Local()
     {
         isReloading = true;
         Debug.Log($"[{gameObject.name}] Starting local reload sequence...");
-        // TODO: Play Reload Animation/Sound locally HERE
 
         yield return new WaitForSeconds(reloadTime);
 
-        currentAmmo = maxAmmo; // Refill ammo locally
+        currentAmmo = maxAmmo;
         isReloading = false;
         Debug.Log($"[{gameObject.name}] Local reload sequence finished. Ammo refilled.");
     }
 
-
-    // --- VISUAL/LOCAL EFFECTS (Owner Only) ---
 
     void ApplyBobbingAndRecoilReturn()
     {
@@ -229,25 +205,21 @@ public class GunController : NetworkBehaviour
 
     void TriggerCameraShake()
     {
-        // Check shakeOffsetTransform before starting
         if (shakeOffsetTransform != null)
         {
             if (cameraShakeCoroutine != null) StopCoroutine(cameraShakeCoroutine);
             cameraShakeCoroutine = StartCoroutine(ShakeCameraOffset()); // Renamed function
         }
-        else if (IsOwner) // Only warn the owner
+        else if (IsOwner)
         {
             Debug.LogWarning($"[{gameObject.name}] Trying to shake camera, but Shake Offset Transform is not assigned!");
         }
     }
 
-    // --- MODIFIED: Shakes the Offset Transform ---
-    IEnumerator ShakeCameraOffset() // Renamed
+    IEnumerator ShakeCameraOffset()
     {
-        if (shakeOffsetTransform == null) yield break; // Safety check using the correct variable
+        if (shakeOffsetTransform == null) yield break;
 
-        // Use the cached original position
-        // Vector3 originalShakePos = shakeOffsetOriginalLocalPosition; // Already stored in Start()
         float elapsed = 0.0f;
 
         while (elapsed < shakeDuration)
@@ -255,41 +227,35 @@ public class GunController : NetworkBehaviour
             float x = Random.Range(-1f, 1f) * shakeMagnitude;
             float y = Random.Range(-1f, 1f) * shakeMagnitude;
 
-            // Apply to shakeOffsetTransform
             if (shakeOffsetTransform != null)
                 shakeOffsetTransform.localPosition = shakeOffsetOriginalLocalPosition + new Vector3(x, y, 0);
             else
-                yield break; // Exit if object is gone
+                yield break;
 
             elapsed += Time.deltaTime;
             yield return null;
         }
 
-        // Reset shakeOffsetTransform
         if (shakeOffsetTransform != null) shakeOffsetTransform.localPosition = shakeOffsetOriginalLocalPosition;
         cameraShakeCoroutine = null;
     }
-    // ---------------------------------------------
-
-    // --- NETWORKING (RPCs) ---
 
     [ServerRpc]
     private void ShootServerRpc(bool didHit, Vector3 hitPoint, Quaternion hitRotation, ulong hitTargetId)
     {
-        SpawnMuzzleFlashClientRpc(); // Tell clients to show flash
+        SpawnMuzzleFlashClientRpc();
 
         if (didHit)
         {
-            SpawnImpactEffectClientRpc(hitPoint, hitRotation); // Tell clients to show impact
+            SpawnImpactEffectClientRpc(hitPoint, hitRotation);
 
             if (hitTargetId != 0)
             {
-                ApplyDamage(hitTargetId, damage); // Server applies damage
+                ApplyDamage(hitTargetId, damage);
             }
         }
     }
 
-    // Server-only helper to apply damage
     private void ApplyDamage(ulong targetId, int damageAmount)
     {
         if (!IsServer) return;
@@ -306,7 +272,6 @@ public class GunController : NetworkBehaviour
     [ClientRpc]
     private void SpawnMuzzleFlashClientRpc()
     {
-        // Add checks before spawning
         if (firePoint != null && muzzleFlashPrefab != null)
         {
             SpawnEffect(muzzleFlashPrefab, firePoint.position, firePoint.rotation); // No parent
@@ -330,10 +295,8 @@ public class GunController : NetworkBehaviour
         }
     }
 
-    // Helper to spawn effects locally (called by ClientRpcs)
     private void SpawnEffect(GameObject effectPrefab, Vector3 position, Quaternion rotation, Transform parent = null)
     {
-        // Prefab null check moved here for central logging
         if (effectPrefab == null)
         {
             Debug.LogError($"[{gameObject.name}] Attempted to spawn an effect, but the effect prefab is null!");
@@ -343,7 +306,6 @@ public class GunController : NetworkBehaviour
         Destroy(instance, destroyTimer);
     }
 
-    // --- Haptics (Local Only - Owner) ---
     private void TriggerHaptics()
     {
         if (!IsOwner) return;
@@ -367,4 +329,4 @@ public class GunController : NetworkBehaviour
             stopRumbleCoroutine = null;
         
     }
-} // End of class
+}

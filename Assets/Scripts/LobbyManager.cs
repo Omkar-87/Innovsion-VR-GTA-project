@@ -17,9 +17,7 @@ using UnityEngine.UI; // Needed for Button
 
 public class LobbyManager : MonoBehaviour
 {
-    // --- Singleton Pattern ---
     public static LobbyManager Instance { get; private set; }
-    // -------------------------
 
     [Header("UI Panels")]
     public GameObject mainMenuPanel;
@@ -35,95 +33,75 @@ public class LobbyManager : MonoBehaviour
 
     [Header("UI Buttons")]
     public GameObject startButton;
-    public Button joinButton; // Added reference
+    public Button joinButton;
 
     [Header("Game Settings")]
     public string gameSceneName = "GameScene";
-    public string mainMenuSceneName = "MainMenu"; // Added reference to self
+    public string mainMenuSceneName = "MainMenu";
 
     private Lobby connectedLobby;
     private bool isPolling = false;
     private bool isHeartbeating = false;
 
-    // --- Make Persistent ---
     void Awake()
     {
-        // Implement Singleton Pattern
         if (Instance != null && Instance != this)
         {
             Debug.LogWarning("Duplicate LobbyManager found. Destroying this one.");
-            Destroy(gameObject); // Destroy duplicate
+            Destroy(gameObject);
             return;
         }
         Instance = this;
-        DontDestroyOnLoad(gameObject); // Make this object persistent
+        DontDestroyOnLoad(gameObject);
 
-        // Subscribe to scene load events ONCE
         SceneManager.sceneLoaded += OnSceneLoaded;
     }
-    // -----------------------
-
-    // --- Check State on Start ---
     async void Start()
     {
-        // This logic runs only once when the *first* instance is created
-        if (Instance == this) // Only run full init if this is the singleton
+        if (Instance == this)
         {
-            // If NetworkManager exists and is already connected (Host or Client)
-            // it means we somehow started not in the main menu or returned unexpectedly.
-            // For robustness, ensure we show the correct UI based on state.
             if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsConnectedClient)
             {
-                // We are already in a lobby, ensure UI is correct and resume maintenance
                 Debug.Log("LobbyManager Start: Already connected. Resuming Lobby UI.");
                 ShowLobbyUI(NetworkManager.Singleton.IsHost);
-                UpdateLobbyUI(); // Update names immediately
+                UpdateLobbyUI();
                 ResumeLobbyMaintenance();
             }
-            else // Otherwise, this is the first time loading, show main menu
+            else
             {
                 ShowMainMenuUI();
                 await AuthenticatePlayerAsync();
             }
         }
     }
-    // --------------------------
 
-    // --- Handle Cleanup ---
     void OnDestroy()
     {
         SceneManager.sceneLoaded -= OnSceneLoaded;
-        // Cleanly leave lobby and shutdown if this object is destroyed
-        // Use Task.Run to avoid issues destroying async operations
         Task.Run(async () => await LeaveLobbyAndShutdownAsync());
     }
-    // ----------------------
 
-    // --- Handle Scene Transitions ---
     private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
     {
-        if (scene.name == mainMenuSceneName) // Check against variable
+        if (scene.name == mainMenuSceneName)
         {
             if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsConnectedClient && connectedLobby != null)
             {
-                // Still connected, ensure lobby UI is shown
                 Debug.Log("OnSceneLoaded(MainMenu): Still connected. Showing Lobby UI.");
                 ShowLobbyUI(NetworkManager.Singleton.IsHost);
-                UpdateLobbyUI(); // Refresh names
+                UpdateLobbyUI();
                 ResumeLobbyMaintenance();
             }
             else
             {
-                // Not connected (or lobby info lost), ensure main menu is shown
                 Debug.Log("OnSceneLoaded(MainMenu): Not connected or lobby info lost. Showing Main Menu.");
                 ShowMainMenuUI();
-                connectedLobby = null; // Clear lobby data
+                connectedLobby = null;
                 StopLobbyMaintenance();
             }
         }
-        else // If loading any OTHER scene (like the GameScene or GameOverScene)
+        else
         {
-            // Stop polling/heartbeat while in another scene
             Debug.Log($"OnSceneLoaded({scene.name}): Stopping lobby maintenance.");
             StopLobbyMaintenance();
         }
@@ -154,14 +132,14 @@ public class LobbyManager : MonoBehaviour
         if (connectedLobby != null)
         {
             if (NetworkManager.Singleton.IsHost && !isHeartbeating) StartCoroutine(HandleLobbyHeartbeat());
-            if (!isPolling) HandleLobbyPollingAsync(); // Fire and forget
+            if (!isPolling) HandleLobbyPollingAsync();
         }
     }
 
     private void StopLobbyMaintenance()
     {
-        StopAllCoroutines(); // Stops Heartbeat
-        isPolling = false;   // Polling loop will exit
+        StopAllCoroutines();
+        isPolling = false;
         isHeartbeating = false;
     }
 
@@ -203,12 +181,12 @@ public class LobbyManager : MonoBehaviour
 
             CreateLobbyOptions options = new CreateLobbyOptions
             {
-                IsPrivate = true, // Keep it private, rely on Lobby Code
+                IsPrivate = true,
                 Data = new Dictionary<string, DataObject>
                 { { "JOIN_CODE_KEY", new DataObject(DataObject.VisibilityOptions.Member, relayJoinCode) } }
             };
 
-            Lobby lobby = await LobbyService.Instance.CreateLobbyAsync("MyMechGameLobby", 2, options); // Simple name
+            Lobby lobby = await LobbyService.Instance.CreateLobbyAsync("ReefRumble", 2, options);
             connectedLobby = lobby;
 
             UnityTransport transport = NetworkManager.Singleton.GetComponent<UnityTransport>();
@@ -220,7 +198,7 @@ public class LobbyManager : MonoBehaviour
 
             ShowLobbyUI(true);
             UpdateLobbyUI();
-            ResumeLobbyMaintenance(); // Start heartbeat and polling
+            ResumeLobbyMaintenance();
 
             Debug.Log($"HOSTED: Lobby ID {lobby.Id} with Lobby Code {lobby.LobbyCode}");
             if (joinCodeText != null) joinCodeText.text = $"CODE: {lobby.LobbyCode}";
@@ -228,14 +206,13 @@ public class LobbyManager : MonoBehaviour
         catch (Exception e)
         {
             Debug.LogError($"Failed to host: {e.Message}");
-            await LeaveLobbyAndShutdownAsync(); // Attempt cleanup
-            ShowMainMenuUI(); // Go back to main menu
+            await LeaveLobbyAndShutdownAsync();
+            ShowMainMenuUI();
         }
     }
 
     public async void JoinLobbyAsync()
     {
-        // Prevent accidental double-joining
         if (NetworkManager.Singleton.IsHost || NetworkManager.Singleton.IsClient)
         {
             Debug.LogWarning("Already connected or hosting.");
@@ -249,7 +226,7 @@ public class LobbyManager : MonoBehaviour
             return;
         }
 
-        if (joinButton != null) joinButton.interactable = false; // Disable button immediately
+        if (joinButton != null) joinButton.interactable = false;
 
         try
         {
@@ -274,15 +251,15 @@ public class LobbyManager : MonoBehaviour
             Debug.Log("Netcode client started!");
 
             ShowLobbyUI(false);
-            ResumeLobbyMaintenance(); // Start polling
+            ResumeLobbyMaintenance();
 
         }
         catch (Exception e)
         {
             Debug.LogError($"Failed to join: {e.Message}");
-            if (joinButton != null) joinButton.interactable = true; // Re-enable button on failure
-            await LeaveLobbyAndShutdownAsync(); // Attempt cleanup
-            ShowMainMenuUI(); // Go back to main menu
+            if (joinButton != null) joinButton.interactable = true;
+            await LeaveLobbyAndShutdownAsync();
+            ShowMainMenuUI();
         }
     }
 
@@ -290,7 +267,6 @@ public class LobbyManager : MonoBehaviour
     {
         if (!NetworkManager.Singleton.IsHost || connectedLobby == null) return;
 
-        // Check if lobby is full (optional, but good practice)
         if (connectedLobby.Players.Count != connectedLobby.MaxPlayers)
         {
             Debug.LogWarning("Waiting for more players...");
@@ -298,15 +274,15 @@ public class LobbyManager : MonoBehaviour
         }
 
         Debug.Log("Host is starting the game...");
-        StopLobbyMaintenance(); // Stop polling/heartbeat before loading
+        StopLobbyMaintenance();
 
-        // Load the game scene via NetworkManager
         NetworkManager.Singleton.SceneManager.LoadScene(gameSceneName, LoadSceneMode.Single);
+
     }
 
     private IEnumerator HandleLobbyHeartbeat()
     {
-        if (isHeartbeating) yield break; // Prevent multiple coroutines
+        if (isHeartbeating) yield break;
         isHeartbeating = true;
         Debug.Log("Starting lobby heartbeat...");
 
@@ -315,7 +291,6 @@ public class LobbyManager : MonoBehaviour
             yield return new WaitForSeconds(15);
             try
             {
-                // Check again after wait, in case we disconnected
                 if (connectedLobby != null && NetworkManager.Singleton.IsHost)
                 {
                     Debug.Log("Sending heartbeat ping...");
@@ -324,15 +299,15 @@ public class LobbyManager : MonoBehaviour
                 else
                 {
                     Debug.Log("Heartbeat condition no longer met, stopping.");
-                    break; // Exit loop if no longer host or lobby is null
+                    break;
                 }
             }
             catch (LobbyServiceException e)
             {
                 Debug.Log($"Heartbeat failed: {e.Message}. Stopping heartbeat.");
-                connectedLobby = null; // Assume lobby is gone
-                ShowMainMenuUI(); // Go back to main menu
-                break; // Exit loop
+                connectedLobby = null;
+                ShowMainMenuUI();
+                break;
             }
         }
         isHeartbeating = false;
@@ -341,7 +316,7 @@ public class LobbyManager : MonoBehaviour
 
     private async Task HandleLobbyPollingAsync()
     {
-        if (isPolling) return; // Prevent multiple loops
+        if (isPolling) return;
         isPolling = true;
         Debug.Log("Starting lobby polling...");
 
@@ -349,7 +324,6 @@ public class LobbyManager : MonoBehaviour
         {
             await Task.Delay(1100); // Wait
 
-            // Check again after wait, in case we stopped polling or disconnected
             if (!isPolling || connectedLobby == null) break;
 
             try
@@ -370,7 +344,7 @@ public class LobbyManager : MonoBehaviour
             {
                 Debug.Log($"Failed to poll lobby: {e.Message}. Returning to main menu.");
                 connectedLobby = null;
-                await LeaveLobbyAndShutdownAsync(); // Attempt shutdown
+                await LeaveLobbyAndShutdownAsync();
                 ShowMainMenuUI();
                 break;
             }
@@ -390,15 +364,14 @@ public class LobbyManager : MonoBehaviour
         return false;
     }
 
-    // Consolidated cleanup function
     public async Task LeaveLobbyAndShutdownAsync()
     {
-        StopLobbyMaintenance(); // Stop loops
+        StopLobbyMaintenance();
 
         string playerId = AuthenticationService.Instance.IsSignedIn ? AuthenticationService.Instance.PlayerId : null;
-        string lobbyId = connectedLobby?.Id; // Safely get lobby ID
+        string lobbyId = connectedLobby?.Id;
 
-        connectedLobby = null; // Clear local lobby reference immediately
+        connectedLobby = null;
 
         // Leave Lobby
         if (!string.IsNullOrEmpty(playerId) && !string.IsNullOrEmpty(lobbyId))
@@ -426,7 +399,7 @@ public class LobbyManager : MonoBehaviour
         }
 
         // Shutdown NetworkManager
-        if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsClient) // Check IsClient as IsHost might already be false after lobby deletion
+        if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsClient)
         {
             Debug.Log("Shutting down NetworkManager...");
             NetworkManager.Singleton.Shutdown();
