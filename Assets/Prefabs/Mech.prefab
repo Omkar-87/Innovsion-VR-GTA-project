@@ -367,6 +367,8 @@ GameObject:
   m_Component:
   - component: {fileID: 6193276045249169235}
   - component: {fileID: 5686520553214587474}
+  - component: {fileID: 873333036384766514}
+  - component: {fileID: 1108677108297908272}
   m_Layer: 0
   m_Name: Cube.036_low
   m_TagString: Untagged
@@ -464,6 +466,43 @@ SkinnedMeshRenderer:
     m_Center: {x: 0.0000011920929, y: 3.1286876, z: 0.6883867}
     m_Extent: {x: 3.0638123, y: 3.4908993, z: 2.526675}
   m_DirtyAABB: 0
+--- !u!95 &873333036384766514
+Animator:
+  serializedVersion: 7
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4688206774779942298}
+  m_Enabled: 1
+  m_Avatar: {fileID: 9000000, guid: 7816da4483149de43bb9aa61d8d25d9a, type: 3}
+  m_Controller: {fileID: 9100000, guid: 38c9017be52e65244b28d2650e1f1416, type: 2}
+  m_CullingMode: 0
+  m_UpdateMode: 0
+  m_ApplyRootMotion: 0
+  m_LinearVelocityBlending: 0
+  m_StabilizeFeet: 0
+  m_AnimatePhysics: 0
+  m_WarningMessage: 
+  m_HasTransformHierarchy: 1
+  m_AllowConstantClipSamplingOptimization: 1
+  m_KeepAnimatorStateOnDisable: 0
+  m_WriteDefaultValuesOnDisable: 0
+--- !u!114 &1108677108297908272
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4688206774779942298}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e8d0727d5ae3244e3b569694d3912374, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  ShowTopMostFoldoutHeaderGroup: 1
+  TransitionStateInfoList: []
+  m_Animator: {fileID: 873333036384766514}
 --- !u!1 &4805271757079603488
 GameObject:
   m_ObjectHideFlags: 0
