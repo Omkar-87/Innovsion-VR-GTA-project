@@ -153,7 +153,7 @@ public class GameManager : NetworkBehaviour
         if (!isMatchOver.Value)
         {
             isMatchOver.Value = true;
-            Debug.Log("Server match timer ended. Determining winner by health.");
+            Debug.Log("<color=red>Server match timer ended. Determining winner by health.</color>");
             DetermineWinnerByHealth();
         }
         else
@@ -213,6 +213,7 @@ public class GameManager : NetworkBehaviour
         }
 
         EndGameClientRpc(winnerId, loserId, isTie, matchDuration);
+        StartCoroutine(LoadGameOverSceneAfterDelay());
     }
 
     public void PlayerDied(ulong loserId)
