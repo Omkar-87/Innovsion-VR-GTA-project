@@ -123,7 +123,7 @@ public class GunController : NetworkBehaviour
             }
             else if (currentAmmo <= 0)
             {
-                // EMPTY
+                // EMPTY...EMPTY SOUND
             }
         }
     }
@@ -140,37 +140,103 @@ public class GunController : NetworkBehaviour
 
         RaycastHit aimHit;
         Vector3 targetPoint;
-        if (Physics.Raycast(aimTarget.position, aimTarget.forward, out aimHit, maxDistance, shootableLayers))
-        {
-            targetPoint = aimHit.point;
-        }
-        else
-        {
-            targetPoint = aimTarget.position + aimTarget.forward * maxDistance;
-        }
+        if (Physics.Raycast(aimTarget.position, aimTarget.forward, out aimHit, maxDistance, shootableLayers)) { targetPoint = aimHit.point; }
+        else { targetPoint = aimTarget.position + aimTarget.forward * maxDistance; }
         Vector3 shootDirection = (targetPoint - firePoint.position).normalized;
 
-        bool didHit = false;
+
+        bool didHitObject = false; 
         Vector3 hitPoint = Vector3.zero;
         Vector3 hitNormal = Vector3.forward;
-        ulong hitTargetId = 0;
+        ulong hitPlayerId = 0;
+        ulong hitBarrelId = 0;
+
 
         RaycastHit gunHit;
         if (firePoint != null && Physics.Raycast(firePoint.position, shootDirection, out gunHit, maxDistance, shootableLayers))
         {
-            didHit = true;
+            didHitObject = true;
             hitPoint = gunHit.point;
             hitNormal = gunHit.normal;
 
             Health targetHealth = gunHit.transform.GetComponent<Health>();
+            Barrel targetBarrel = gunHit.transform.GetComponent<Barrel>();
             NetworkObject targetNetworkObject = gunHit.transform.GetComponent<NetworkObject>();
+
             if (targetHealth != null && targetNetworkObject != null)
             {
-                hitTargetId = targetNetworkObject.NetworkObjectId;
+                hitPlayerId = targetNetworkObject.NetworkObjectId;
+                Debug.Log($"[{gameObject.name}] Locally hit Player {gunHit.transform.name} (ID: {hitPlayerId})");
+            }
+            else if (targetBarrel != null && targetNetworkObject != null)
+            {
+                hitBarrelId = targetNetworkObject.NetworkObjectId;
+                Debug.Log($"[{gameObject.name}] Locally hit Barrel {gunHit.transform.name} (ID: {hitBarrelId})");
+            }
+            else
+            {
+                Debug.Log($"[{gameObject.name}] Locally hit {gunHit.transform.name}, but it's not a Player or Barrel with NetworkObject.");
             }
         }
+        
 
-        ShootServerRpc(didHit, hitPoint, Quaternion.LookRotation(hitNormal), hitTargetId);
+        ShootServerRpc(didHitObject, hitPoint, Quaternion.LookRotation(hitNormal), hitPlayerId, hitBarrelId);
+    }
+
+
+    [ServerRpc]
+    private void ShootServerRpc(bool didHitObject, Vector3 hitPoint, Quaternion hitRotation, ulong hitPlayerId, ulong hitBarrelId)
+    {
+        SpawnMuzzleFlashClientRpc();
+
+        if (didHitObject)
+        {
+            SpawnImpactEffectClientRpc(hitPoint, hitRotation);
+
+            if (hitPlayerId != 0) // Was it a player
+            {
+                ApplyPlayerDamage(hitPlayerId, damage);
+            }
+            else if (hitBarrelId != 0) //Was it a barrel
+            {
+                ApplyBarrelDamage(hitBarrelId, damage);
+            }
+        }
+    }
+
+    private void ApplyPlayerDamage(ulong targetPlayerId, int damageAmount)
+    {
+        if (!IsServer) return;
+        if (NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(targetPlayerId, out NetworkObject targetObject))
+        {
+            Health targetHealth = targetObject.GetComponent<Health>();
+            if (targetHealth != null)
+            {
+                targetHealth.TakeDamage(damageAmount);
+            }
+        }
+    }
+
+    private void ApplyBarrelDamage(ulong targetBarrelId, int damageAmount)
+    {
+        if (!IsServer) return;
+        if (NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(targetBarrelId, out NetworkObject targetObject))
+        {
+            Barrel targetBarrel = targetObject.GetComponent<Barrel>();
+            if (targetBarrel != null)
+            {
+                Debug.Log($"SERVER: Telling Barrel {targetBarrelId} to take {damageAmount} damage.");
+                targetBarrel.TakeDamage_ServerRpc(damageAmount);
+            }
+            else
+            {
+                Debug.LogWarning($"SERVER: Hit target {targetObject.name} (ID: {targetBarrelId}) but it has no Barrel component.");
+            }
+        }
+        else
+        {
+            Debug.LogWarning($"SERVER: Could not find hit target Barrel with NetworkObjectId {targetBarrelId} to apply damage.");
+        }
     }
 
     IEnumerator Reload_Local()
@@ -266,6 +332,8 @@ public class GunController : NetworkBehaviour
             {
                 targetHealth.TakeDamage(damageAmount);
             }
+
+
         }
     }
 
