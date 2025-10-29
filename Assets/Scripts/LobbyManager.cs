@@ -165,6 +165,7 @@ public class LobbyManager : MonoBehaviour
         }
     }
 
+    //public LobbyManager lobbyManager;
     public async void HostLobbyAsync()
     {
         // Prevent accidental double-hosting
@@ -209,6 +210,7 @@ public class LobbyManager : MonoBehaviour
             await LeaveLobbyAndShutdownAsync();
             ShowMainMenuUI();
         }
+        NetworkManager.Singleton.SpawnManager.GetLocalPlayerObject().gameObject.SetActive( false );
     }
 
     public async void JoinLobbyAsync()
@@ -252,7 +254,6 @@ public class LobbyManager : MonoBehaviour
 
             ShowLobbyUI(false);
             ResumeLobbyMaintenance();
-
         }
         catch (Exception e)
         {
@@ -261,6 +262,17 @@ public class LobbyManager : MonoBehaviour
             await LeaveLobbyAndShutdownAsync();
             ShowMainMenuUI();
         }
+        NetworkManager.Singleton.SpawnManager.GetLocalPlayerObject().gameObject.SetActive(false);
+
+    }
+
+    [ClientRpc]
+    private void EnablePlayerComponentsBeforeGameStartClientRpc()
+    {
+        Debug.Log($"<color=green>Client {NetworkManager.Singleton.LocalClientId}: Received RPC to re-enable player components for game start.</color>");
+        NetworkManager.Singleton.SpawnManager.GetLocalPlayerObject().gameObject.SetActive(true);
+        NetworkManager.Singleton.SpawnManager.GetLocalPlayerObject().gameObject.SetActive(false);
+        NetworkManager.Singleton.SpawnManager.GetLocalPlayerObject().gameObject.SetActive(true);
     }
 
     public void StartGame()
@@ -273,9 +285,10 @@ public class LobbyManager : MonoBehaviour
             return;
         }
 
-        Debug.Log("Host is starting the game...");
+        Debug.Log("Host is starting the game..."); //
         StopLobbyMaintenance();
 
+        EnablePlayerComponentsBeforeGameStartClientRpc();
         NetworkManager.Singleton.SceneManager.LoadScene(gameSceneName, LoadSceneMode.Single);
 
     }
@@ -431,4 +444,32 @@ public class LobbyManager : MonoBehaviour
         bool canStart = NetworkManager.Singleton.IsHost && connectedLobby.Players.Count == connectedLobby.MaxPlayers;
         if (startButton != null) startButton.SetActive(canStart);
     }
+
+    private void SetLocalPlayerLobbyState(bool isEnabled)
+    {
+        // Use a coroutine for a slight delay to ensure the player object exists
+        StartCoroutine(SetLocalPlayerActiveStateDelayed(isEnabled));
+    }
+    // ---------------------
+
+
+    // --- Coroutine Helper ---
+    private IEnumerator SetLocalPlayerActiveStateDelayed(bool isActive)
+    {
+        // Wait a couple of frames for NetworkManager to spawn the player object
+        yield return null;
+        yield return null;
+
+        NetworkObject localPlayer = NetworkManager.Singleton?.SpawnManager?.GetLocalPlayerObject();
+        if (localPlayer != null)
+        {
+            localPlayer.gameObject.SetActive(isActive);
+            Debug.Log($"Set Local Player GameObject Active: {isActive}");
+        }
+        else
+        {
+            Debug.LogWarning($"SetLocalPlayerActiveStateDelayed({isActive}): Could not find local player object after delay.");
+        }
+    }
+
 }
