@@ -493,7 +493,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -416, y: -30}
+  m_AnchoredPosition: {x: -15.0000305, y: -30}
   m_SizeDelta: {x: 397.7021, y: 52.4247}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &305416609
@@ -723,7 +723,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -416, y: -110}
+  m_AnchoredPosition: {x: -15.0000305, y: -110}
   m_SizeDelta: {x: 397.7021, y: 52.4247}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &350681158
@@ -1062,8 +1062,8 @@ Camera:
   near clip plane: 0.3
   far clip plane: 1000
   field of view: 60
-  orthographic: 0
-  orthographic size: 5
+  orthographic: 1
+  orthographic size: 44
   m_Depth: -1
   m_CullingMask:
     serializedVersion: 2
@@ -1174,7 +1174,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -549, y: -202}
+  m_AnchoredPosition: {x: -16, y: -202}
   m_SizeDelta: {x: 124.4852, y: 54.7254}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &763710842
@@ -1886,7 +1886,7 @@ MonoBehaviour:
   m_VertexBufferAutoSizeReduction: 0
   m_useMaxVisibleDescender: 1
   m_pageToDisplay: 1
-  m_margin: {x: 0, y: 0, z: 0, w: 0}
+  m_margin: {x: -120.04306, y: 0, z: -105.10217, w: 0}
   m_isUsingLegacyAnimationComponent: 0
   m_isVolumetricText: 0
   m_hasFontAssetChanged: 0

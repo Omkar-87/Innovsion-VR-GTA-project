@@ -242,10 +242,10 @@ public class GameManager : NetworkBehaviour
         else
         {
             Debug.Log($"Player {loserId} died. Player {winnerId} wins! Kill time: {killTime:F1}s");
-            EndGameClientRpc(winnerId, loserId, false, killTime);
+            
         }
 
-
+        EndGameClientRpc(winnerId, loserId, false, killTime);
         StartCoroutine(LoadGameOverSceneAfterDelay());
     }
 
@@ -266,7 +266,17 @@ public class GameManager : NetworkBehaviour
         if (IsServer)
         {
             Debug.Log($"Server loading scene: {gameOverSceneName}");
+            SetGameObjectDiableClientRpc();
             NetworkManager.Singleton.SceneManager.LoadScene(gameOverSceneName, LoadSceneMode.Single);
+        }
+    }
+
+    [ClientRpc]
+    public void SetGameObjectDiableClientRpc() 
+    {
+        foreach(var client in NetworkManager.Singleton.SpawnManager.GetConnectedPlayers())
+        {
+            NetworkManager.Singleton.SpawnManager.GetPlayerNetworkObject(client).gameObject.SetActive(false);
         }
     }
 
