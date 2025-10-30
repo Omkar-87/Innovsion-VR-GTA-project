@@ -5,6 +5,12 @@ using Unity.Netcode;
 
 public class GunController : NetworkBehaviour
 {
+    [Header("Audio_Clps")]
+    public AudioClip Machine_Gun;
+    public AudioClip Reload_Sound;
+
+
+
     [Header("Core References")]
     public Transform aimTarget;            
     public Transform firePoint;            
@@ -243,8 +249,11 @@ public class GunController : NetworkBehaviour
     {
         isReloading = true;
         Debug.Log($"[{gameObject.name}] Starting local reload sequence...");
-
+        ///
+        GlobalAudioManager.Instance.PlaySound(Reload_Sound, 1.0f);
+        ///
         yield return new WaitForSeconds(reloadTime);
+
 
         currentAmmo = maxAmmo;
         isReloading = false;

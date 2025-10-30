@@ -4,6 +4,12 @@ using Unity.Netcode;
 using System.Collections;   
 using UnityEngine.SceneManagement;
 
+
+/// <summary>
+/// In every function wherever there is a call of GlobalAudioManager.Instance.PlaySound()
+/// is the call for sound managed by Sound_FX game object.
+/// PlaySound ---> Takes arguments 1. Audio_Clip , 2. float volume 
+/// </summary>
 public class Health : NetworkBehaviour
 {
 
@@ -14,7 +20,10 @@ public class Health : NetworkBehaviour
     [Header("UI (Assign These in Inspector - Optional)")]
     public Slider healtbarFP;    
     public Slider healthbarTP;   
-    public Image hitEffect;      
+    public Image hitEffect;
+
+    //Audio Clip variable _Drag_and_drop here
+    public AudioClip Explosion_Audio;
 
     public GameManager gameManager;
     private Coroutine hitEffectCoroutine;
@@ -79,6 +88,9 @@ public class Health : NetworkBehaviour
         if (currentHealth.Value <= 0 && previousHealth > 0)
         {
             Die();
+
+            //Death_Audio
+            GlobalAudioManager.Instance.PlaySound(Explosion_Audio, 1.0f);
         }
     }
 
