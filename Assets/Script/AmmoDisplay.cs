@@ -1,23 +1,30 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.UI;
+using TMPro; // <-- 1. IMPORT TEXTMESHPRO
 
 // You should rename this file to "AmmoDisplay.cs"
 public class AmmoDisplay : MonoBehaviour
 {
-    private Text ammoText;
+    // --- 2. CHANGED 'Text' to 'TMP_Text' ---
+    private TMP_Text ammoText;
+
     // Drag your player's gun object here in the Inspector
-    public GunController gunController;
+    public WeaponController gunController;
 
     void Start()
     {
-        // Get the Text component from the GameObject this script is attached to.
-        ammoText = GetComponent<Text>();
+        // --- 3. CHANGED 'GetComponent<Text>()' to 'GetComponent<TMP_Text>()' ---
+        ammoText = GetComponent<TMP_Text>();
+
+        if (ammoText == null)
+        {
+            Debug.LogError("ERROR: Could not find TextMeshPro (TMP_Text) component on this GameObject!", this);
+            this.enabled = false;
+            return;
+        }
 
         if (gunController == null)
         {
-            Debug.LogError("ERROR: GunController not assigned in the AmmoDisplay script!");
+            Debug.LogError("ERROR: GunController not assigned in the AmmoDisplay script!", this);
             // Disable this script if the gun isn't assigned to prevent errors.
             this.enabled = false;
         }
@@ -28,6 +35,7 @@ public class AmmoDisplay : MonoBehaviour
         // If the gunController is assigned, update the text every frame.
         if (gunController != null)
         {
+            // This line works for both Text and TMP_Text
             ammoText.text = gunController.currentAmmo + " / " + gunController.maxAmmo;
         }
     }

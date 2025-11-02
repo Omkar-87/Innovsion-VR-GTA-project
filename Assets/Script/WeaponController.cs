@@ -1,31 +1,30 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 using System.Collections;
-using Unity.Netcode;
 
-public class GunController : NetworkBehaviour
+public class WeaponController : MonoBehaviour
 {
     [Header("Core References")]
-    public Transform aimTarget;            
-    public Transform firePoint;            
-    public Transform gunGraphicsTransform; 
-    public Camera mainCamera;              
+    public Transform aimTarget;
+    public Transform firePoint;
+    public Transform gunGraphicsTransform;
+    public Camera mainCamera;
 
     [Header("Input Actions")]
     public InputActionProperty shootAction;
     public InputActionProperty reloadAction;
 
     [Header("Shooting Stats")]
-    public LayerMask shootableLayers;   
-    public float fireRate = 10f;        
+    public LayerMask shootableLayers;
+    public float fireRate = 10f;
     public float maxDistance = 100f;
-    public int damage = 2;              
+    public int damage = 2;
 
     [Header("Ammo")]
     public int maxAmmo = 50;
-    public int currentAmmo;             
+    public int currentAmmo;
     public float reloadTime = 1.5f;
-    private bool isReloading = false;   
+    private bool isReloading = false;
 
     [Header("Recoil (Applied to Graphics)")]
     public float recoilKickback = 0.03f;
@@ -44,9 +43,9 @@ public class GunController : NetworkBehaviour
     private Coroutine cameraShakeCoroutine;
 
     [Header("Effects (Prefabs)")]
-    public GameObject muzzleFlashPrefab; 
+    public GameObject muzzleFlashPrefab;
     public GameObject impactEffectPrefab;
-    public float destroyTimer = 1.5f;    
+    public float destroyTimer = 1.5f;
 
     [Header("Haptic Feedback")]
     [Range(0f, 1f)]
@@ -70,7 +69,7 @@ public class GunController : NetworkBehaviour
             graphicsOriginalLocalPosition = gunGraphicsTransform.localPosition;
             graphicsOriginalLocalRotation = gunGraphicsTransform.localRotation;
         }
-        else if (IsOwner)
+        else
         {
             Debug.LogError($"[{gameObject.name}] Gun Graphics Transform is not assigned!", this);
         }
@@ -79,12 +78,12 @@ public class GunController : NetworkBehaviour
         {
             shakeOffsetOriginalLocalPosition = shakeOffsetTransform.localPosition;
         }
-        else if (IsOwner)
+        else
         {
             Debug.LogError($"[{gameObject.name}] Shake Offset Transform is not assigned!", this);
         }
 
-        if (IsOwner && mainCamera == null)
+        if (mainCamera == null)
         {
             mainCamera = Camera.main;
             if (mainCamera == null) Debug.LogWarning($"[{gameObject.name}] Main Camera not found/assigned. Camera checks might fail.", this);
@@ -98,8 +97,6 @@ public class GunController : NetworkBehaviour
 
     void Update()
     {
-        if (!IsOwner) return;
-
         ApplyBobbingAndRecoilReturn();
         HandleInput();
     }
@@ -116,7 +113,7 @@ public class GunController : NetworkBehaviour
 
         if (shootAction.action.ReadValue<float>() > 0.1f && Time.time >= nextFireTime)
         {
-            if (currentAmmo > 0 && IsSpawned)
+            if (currentAmmo > 0)
             {
                 nextFireTime = Time.time + 1f / fireRate;
                 Shoot();
@@ -130,13 +127,14 @@ public class GunController : NetworkBehaviour
 
     void Shoot()
     {
-        if (gunGraphicsTransform == null || aimTarget == null || !IsSpawned || currentAmmo <= 0 || isReloading) return;
+        if (gunGraphicsTransform == null || aimTarget == null || currentAmmo <= 0 || isReloading) return;
 
         currentAmmo--;
 
         TriggerHaptics();
         TriggerCameraShake();
         ApplyRecoil();
+        SpawnMuzzleFlash();
 
         RaycastHit aimHit;
         Vector3 targetPoint;
@@ -144,98 +142,28 @@ public class GunController : NetworkBehaviour
         else { targetPoint = aimTarget.position + aimTarget.forward * maxDistance; }
         Vector3 shootDirection = (targetPoint - firePoint.position).normalized;
 
-
-        bool didHitObject = false; 
-        Vector3 hitPoint = Vector3.zero;
-        Vector3 hitNormal = Vector3.forward;
-        ulong hitPlayerId = 0;
-        ulong hitBarrelId = 0;
-
-
         RaycastHit gunHit;
         if (firePoint != null && Physics.Raycast(firePoint.position, shootDirection, out gunHit, maxDistance, shootableLayers))
         {
-            didHitObject = true;
-            hitPoint = gunHit.point;
-            hitNormal = gunHit.normal;
+            SpawnImpactEffect(gunHit.point, Quaternion.LookRotation(gunHit.normal));
 
+            // --- UPDATED ---
+            // Look for a Health component
             Health targetHealth = gunHit.transform.GetComponent<Health>();
-            Barrel targetBarrel = gunHit.transform.GetComponent<Barrel>();
-            NetworkObject targetNetworkObject = gunHit.transform.GetComponent<NetworkObject>();
-
-            if (targetHealth != null && targetNetworkObject != null)
-            {
-                hitPlayerId = targetNetworkObject.NetworkObjectId;
-                Debug.Log($"[{gameObject.name}] Locally hit Player {gunHit.transform.name} (ID: {hitPlayerId})");
-            }
-            else if (targetBarrel != null && targetNetworkObject != null)
-            {
-                hitBarrelId = targetNetworkObject.NetworkObjectId;
-                Debug.Log($"[{gameObject.name}] Locally hit Barrel {gunHit.transform.name} (ID: {hitBarrelId})");
-            }
-            else
-            {
-                Debug.Log($"[{gameObject.name}] Locally hit {gunHit.transform.name}, but it's not a Player or Barrel with NetworkObject.");
-            }
-        }
-        
-
-        ShootServerRpc(didHitObject, hitPoint, Quaternion.LookRotation(hitNormal), hitPlayerId, hitBarrelId);
-    }
-
-
-    [ServerRpc]
-    private void ShootServerRpc(bool didHitObject, Vector3 hitPoint, Quaternion hitRotation, ulong hitPlayerId, ulong hitBarrelId)
-    {
-        SpawnMuzzleFlashClientRpc();
-
-        if (didHitObject)
-        {
-            SpawnImpactEffectClientRpc(hitPoint, hitRotation);
-
-            if (hitPlayerId != 0) // Was it a player
-            {
-                ApplyPlayerDamage(hitPlayerId, damage);
-            }
-            else if (hitBarrelId != 0) //Was it a barrel
-            {
-                ApplyBarrelDamage(hitBarrelId, damage);
-            }
-        }
-    }
-
-    private void ApplyPlayerDamage(ulong targetPlayerId, int damageAmount)
-    {
-        if (!IsServer) return;
-        if (NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(targetPlayerId, out NetworkObject targetObject))
-        {
-            Health targetHealth = targetObject.GetComponent<Health>();
             if (targetHealth != null)
             {
-                targetHealth.TakeDamage(damageAmount);
+                Debug.Log($"[{gameObject.name}] Locally hit Player {gunHit.transform.name}");
+                targetHealth.TakeDamage(damage);
             }
-        }
-    }
 
-    private void ApplyBarrelDamage(ulong targetBarrelId, int damageAmount)
-    {
-        if (!IsServer) return;
-        if (NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(targetBarrelId, out NetworkObject targetObject))
-        {
-            Barrel targetBarrel = targetObject.GetComponent<Barrel>();
+            // Look for a Barrel component
+            Barrel targetBarrel = gunHit.transform.GetComponent<Barrel>();
             if (targetBarrel != null)
             {
-                Debug.Log($"SERVER: Telling Barrel {targetBarrelId} to take {damageAmount} damage.");
-                targetBarrel.TakeDamage_ServerRpc(damageAmount);
+                Debug.Log($"[{gameObject.name}] Locally hit Barrel {gunHit.transform.name}");
+                targetBarrel.TakeDamage(damage);
             }
-            else
-            {
-                Debug.LogWarning($"SERVER: Hit target {targetObject.name} (ID: {targetBarrelId}) but it has no Barrel component.");
-            }
-        }
-        else
-        {
-            Debug.LogWarning($"SERVER: Could not find hit target Barrel with NetworkObjectId {targetBarrelId} to apply damage.");
+            // --- END OF UPDATED SECTION ---
         }
     }
 
@@ -274,9 +202,9 @@ public class GunController : NetworkBehaviour
         if (shakeOffsetTransform != null)
         {
             if (cameraShakeCoroutine != null) StopCoroutine(cameraShakeCoroutine);
-            cameraShakeCoroutine = StartCoroutine(ShakeCameraOffset()); // Renamed function
+            cameraShakeCoroutine = StartCoroutine(ShakeCameraOffset());
         }
-        else if (IsOwner)
+        else
         {
             Debug.LogWarning($"[{gameObject.name}] Trying to shake camera, but Shake Offset Transform is not assigned!");
         }
@@ -306,52 +234,19 @@ public class GunController : NetworkBehaviour
         cameraShakeCoroutine = null;
     }
 
-    [ServerRpc]
-    private void ShootServerRpc(bool didHit, Vector3 hitPoint, Quaternion hitRotation, ulong hitTargetId)
-    {
-        SpawnMuzzleFlashClientRpc();
-
-        if (didHit)
-        {
-            SpawnImpactEffectClientRpc(hitPoint, hitRotation);
-
-            if (hitTargetId != 0)
-            {
-                ApplyDamage(hitTargetId, damage);
-            }
-        }
-    }
-
-    private void ApplyDamage(ulong targetId, int damageAmount)
-    {
-        if (!IsServer) return;
-        if (NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(targetId, out NetworkObject targetObject))
-        {
-            Health targetHealth = targetObject.GetComponent<Health>();
-            if (targetHealth != null)
-            {
-                targetHealth.TakeDamage(damageAmount);
-            }
-
-
-        }
-    }
-
-    [ClientRpc]
-    private void SpawnMuzzleFlashClientRpc()
+    private void SpawnMuzzleFlash()
     {
         if (firePoint != null && muzzleFlashPrefab != null)
         {
-            SpawnEffect(muzzleFlashPrefab, firePoint.position, firePoint.rotation); // No parent
+            SpawnEffect(muzzleFlashPrefab, firePoint.position, firePoint.rotation);
         }
         else
         {
-            Debug.LogWarning($"[{gameObject.name}] Client {NetworkManager.Singleton.LocalClientId}: Failed to spawn muzzle flash (missing firePoint or prefab).");
+            Debug.LogWarning($"[{gameObject.name}] Failed to spawn muzzle flash (missing firePoint or prefab).");
         }
     }
 
-    [ClientRpc]
-    private void SpawnImpactEffectClientRpc(Vector3 position, Quaternion rotation)
+    private void SpawnImpactEffect(Vector3 position, Quaternion rotation)
     {
         if (impactEffectPrefab != null)
         {
@@ -359,7 +254,7 @@ public class GunController : NetworkBehaviour
         }
         else
         {
-            Debug.LogWarning($"[{gameObject.name}] Client {NetworkManager.Singleton.LocalClientId}: Failed to spawn impact effect (missing prefab).");
+            Debug.LogWarning($"[{gameObject.name}] Failed to spawn impact effect (missing prefab).");
         }
     }
 
@@ -376,7 +271,6 @@ public class GunController : NetworkBehaviour
 
     private void TriggerHaptics()
     {
-        if (!IsOwner) return;
         var device = shootAction.action.activeControl?.device;
         if (device is Gamepad gamepad)
         {
@@ -388,13 +282,11 @@ public class GunController : NetworkBehaviour
     private IEnumerator RumbleCoroutine(Gamepad gamepad, float intensity, float duration)
     {
         if (gamepad == null) yield break;
-    
-            gamepad.SetMotorSpeeds(intensity, intensity);
-            yield return new WaitForSeconds(duration);
-            if (gamepad != null && gamepad.added) gamepad.SetMotorSpeeds(0f, 0f);
-        
 
-            stopRumbleCoroutine = null;
-        
+        gamepad.SetMotorSpeeds(intensity, intensity);
+        yield return new WaitForSeconds(duration);
+        if (gamepad != null && gamepad.added) gamepad.SetMotorSpeeds(0f, 0f);
+
+        stopRumbleCoroutine = null;
     }
 }

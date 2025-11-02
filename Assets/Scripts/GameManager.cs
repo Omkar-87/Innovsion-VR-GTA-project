@@ -1,12 +1,11 @@
 using System.Collections;
 using System.Collections.Generic; // Needed for List
 using TMPro;
-using Unity.Netcode;
 using UnityEngine;
-using UnityEngine.SceneManagement; // Needed for GameResultData reference
-using UnityEngine.XR.Interaction.Toolkit.Samples.StarterAssets;
+using UnityEngine.SceneManagement; // Needed for loading scenes
+using UnityEngine.XR.Interaction.Toolkit.Samples.StarterAssets; // For DynamicMoveProvider
 
-public class GameManager : NetworkBehaviour
+public class GameManager : MonoBehaviour
 {
     [Header("UI References")]
     public TMP_Text countdownText;
@@ -17,52 +16,104 @@ public class GameManager : NetworkBehaviour
     public int countdownDuration = 3;
     public float matchDuration = 120f;
     public string gameOverSceneName = "Round Over";
-    
-    private NetworkVariable<int> startCountdownValue = new NetworkVariable<int>(
-        readPerm: NetworkVariableReadPermission.Everyone,
-        writePerm: NetworkVariableWritePermission.Server);
 
-    private NetworkVariable<float> matchTimeRemaining = new NetworkVariable<float>(
-        readPerm: NetworkVariableReadPermission.Everyone,
-        writePerm: NetworkVariableWritePermission.Server);
-
-    private NetworkVariable<bool> isMatchOver = new NetworkVariable<bool>(
-        false, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
-
+    private int startCountdownValue;
+    private float matchTimeRemaining;
+    private bool isMatchOver = false;
     private bool countdownStarted = false;
 
-
-    public override void OnNetworkSpawn()
+    void Start()
     {
-        startCountdownValue.OnValueChanged += HandleStartCountdownChanged;
-        matchTimeRemaining.OnValueChanged += HandleMatchTimerChanged;
-        isMatchOver.OnValueChanged += HandleMatchOverChanged;
+        startCountdownValue = countdownDuration;
+        matchTimeRemaining = matchDuration;
+        isMatchOver = false;
 
-        HandleStartCountdownChanged(0, startCountdownValue.Value);
-        HandleMatchTimerChanged(0, matchTimeRemaining.Value);
+        UpdateCountdownUI(startCountdownValue);
 
-        if (IsServer && !countdownStarted)
+        // --- FIX 1 ---
+        // The method is named HandleMatchTimerChanged, not UpdateMatchTimerUI
+        HandleMatchTimerChanged(matchTimeRemaining);
+        // --- END FIX ---
+
+        if (!countdownStarted)
         {
-            StartCoroutine(StartRoundSequence_Server());
+            StartCoroutine(StartRoundSequence());
         }
 
         SetPlayerInputEnabled(false);
+    }
 
-        
-        foreach(var client in NetworkManager.Singleton.ConnectedClientsList)
+    public void PlayerDied()
+    {
+        if (isMatchOver) return;
+
+        isMatchOver = true;
+        Debug.Log("<color=red>Player has died! Game Over.</color>");
+
+        EndGame(false);
+    }
+
+    private void EndGame(bool didWin)
+    {
+        float finalTime = matchDuration - matchTimeRemaining;
+        GameResultData.DidWin = didWin;
+        GameResultData.MatchTime = finalTime;
+
+        Debug.Log($"Game Over! You Won: {didWin}, Final Time: {finalTime:F1}s");
+
+        SetPlayerInputEnabled(false);
+
+        StartCoroutine(LoadGameOverSceneAfterDelay());
+    }
+
+    private IEnumerator StartRoundSequence()
+    {
+        countdownStarted = true;
+        isMatchOver = false;
+        matchTimeRemaining = matchDuration;
+        startCountdownValue = countdownDuration;
+        Debug.Log("Starting initial countdown...");
+
+        while (startCountdownValue > 0)
         {
-            client.PlayerObject.gameObject.GetComponent<Health>().FindGameManager();
+            UpdateCountdownUI(startCountdownValue);
+            yield return new WaitForSeconds(1.0f);
+            startCountdownValue--;
+        }
+
+        UpdateCountdownUI(0);
+        SetPlayerInputEnabled(true);
+        yield return new WaitForSeconds(1.0f);
+
+        UpdateCountdownUI(-1);
+        Debug.Log("Match timer starting...");
+
+        while (matchTimeRemaining > 0)
+        {
+            if (isMatchOver)
+            {
+                Debug.Log("Match timer stopping early, player died.");
+                yield break;
+            }
+
+            // --- FIX 2 ---
+            // The method is named HandleMatchTimerChanged, not UpdateMatchTimerUI
+            HandleMatchTimerChanged(matchTimeRemaining);
+            // --- END FIX ---
+
+            yield return new WaitForSeconds(1.0f);
+            matchTimeRemaining--;
+        }
+
+        if (!isMatchOver)
+        {
+            isMatchOver = true;
+            Debug.Log("<color=green>Server match timer ended. Player survived! You Win!</color>");
+            EndGame(true);
         }
     }
 
-    public override void OnNetworkDespawn()
-    {
-        startCountdownValue.OnValueChanged -= HandleStartCountdownChanged;
-        matchTimeRemaining.OnValueChanged -= HandleMatchTimerChanged;
-        isMatchOver.OnValueChanged -= HandleMatchOverChanged;
-    }
-
-    private void HandleStartCountdownChanged(int previousValue, int newValue)
+    private void UpdateCountdownUI(int newValue)
     {
         if (countdownText == null || countdownPanel == null) return;
 
@@ -73,8 +124,8 @@ public class GameManager : NetworkBehaviour
         }
         else if (newValue == 0)
         {
+            countdownPanel.SetActive(true);
             countdownText.text = "RUMBLE!!";
-            SetPlayerInputEnabled(true);
         }
         else // newValue < 0
         {
@@ -82,7 +133,8 @@ public class GameManager : NetworkBehaviour
         }
     }
 
-    private void HandleMatchTimerChanged(float previousValue, float newValue)
+    // This is the correct method name
+    private void HandleMatchTimerChanged(float newValue)
     {
         if (matchTimerText == null) return;
 
@@ -98,208 +150,40 @@ public class GameManager : NetworkBehaviour
         }
     }
 
-    private void HandleMatchOverChanged(bool previousValue, bool newValue)
-    {
-        if (newValue == true)
-        {
-            Debug.Log("Match Over flag received by client/host.");
-        }
-    }
-
-
-    private IEnumerator StartRoundSequence_Server()
-    {
-        countdownStarted = true;
-        isMatchOver.Value = false;
-        matchTimeRemaining.Value = matchDuration;
-        startCountdownValue.Value = countdownDuration;
-        Debug.Log("Server starting initial countdown...");
-
-        while (startCountdownValue.Value > 0)
-        {
-            yield return new WaitForSeconds(1.0f);
-            if (!IsServer) yield break;
-            startCountdownValue.Value--;
-        }
-
-        yield return new WaitForSeconds(1.0f);
-        if (!IsServer) yield break;
-        startCountdownValue.Value = -1;
-
-        Debug.Log("Server starting match timer...");
-
-        while (matchTimeRemaining.Value > 0)
-        {
-            if (isMatchOver.Value)
-            {
-                Debug.Log("Match timer stopping early due to match end.");
-                yield break;
-            }
-
-            yield return new WaitForSeconds(1.0f);
-            if (!IsServer) yield break;
-
-            if (!isMatchOver.Value)
-            {
-                matchTimeRemaining.Value--;
-            }
-            else
-            {
-                Debug.Log("Match timer stopping early due to match end (detected after wait).");
-                yield break;
-            }
-        }
-
-        if (!isMatchOver.Value)
-        {
-            isMatchOver.Value = true;
-            Debug.Log("<color=red>Server match timer ended. Determining winner by health.</color>");
-            DetermineWinnerByHealth();
-        }
-        else
-        {
-            Debug.Log("Match timer reached zero, but game already ended.");
-        }
-    }
-
-    private void DetermineWinnerByHealth()
-    {
-        if (!IsServer) return;
-
-        List<Health> playerHealths = new List<Health>();
-        foreach (var client in NetworkManager.Singleton.ConnectedClientsList)
-        {
-            if (client.PlayerObject != null)
-            {
-                Health health = client.PlayerObject.GetComponent<Health>();
-                if (health != null)
-                {
-                    playerHealths.Add(health);
-                }
-            }
-        }
-
-        if (playerHealths.Count != 2)
-        {
-            Debug.LogError($"Expected 2 players with Health components, but found {playerHealths.Count}. Cannot determine winner by health.");
-            EndGameClientRpc(ulong.MaxValue, ulong.MaxValue, true, matchDuration);
-            StartCoroutine(LoadGameOverSceneAfterDelay());
-            return;
-        }
-
-        Health player1 = playerHealths[0];
-        Health player2 = playerHealths[1];
-
-        ulong winnerId = ulong.MaxValue;
-        ulong loserId = ulong.MaxValue;
-        bool isTie = false;
-
-        if (player1.currentHealth.Value > player2.currentHealth.Value)
-        {
-            winnerId = player1.OwnerClientId;
-            loserId = player2.OwnerClientId;
-            Debug.Log($"Player {winnerId} wins by health ({player1.currentHealth.Value} > {player2.currentHealth.Value})");
-        }
-        else if (player2.currentHealth.Value > player1.currentHealth.Value)
-        {
-            winnerId = player2.OwnerClientId;
-            loserId = player1.OwnerClientId;
-            Debug.Log($"Player {winnerId} wins by health ({player2.currentHealth.Value} > {player1.currentHealth.Value})");
-        }
-        else
-        {
-            isTie = true;
-            Debug.Log($"Match ended in a TIE by health ({player1.currentHealth.Value} == {player2.currentHealth.Value})");
-        }
-
-        EndGameClientRpc(winnerId, loserId, isTie, matchDuration);
-        StartCoroutine(LoadGameOverSceneAfterDelay());
-    }
-
-    public void PlayerDied(ulong loserId)
-    {
-        if (!IsServer || isMatchOver.Value) return;
-
-        isMatchOver.Value = true;
-
-        float killTime = matchDuration - matchTimeRemaining.Value;
-
-        ulong winnerId = ulong.MaxValue;
-        foreach (var client in NetworkManager.Singleton.ConnectedClientsList)
-        {
-            if (client.ClientId != loserId)
-            {
-                winnerId = client.ClientId;
-                break;
-            }
-        }
-
-        if (winnerId == ulong.MaxValue)
-        {
-            Debug.LogWarning($"Player {loserId} died, but couldn't determine winner. Treating as tie/error.");
-            // EndGameClientRpc(ulong.MaxValue, loserId, true, killTime);
-        }
-        else
-        {
-            Debug.Log($"Player {loserId} died. Player {winnerId} wins! Kill time: {killTime:F1}s");
-            
-        }
-
-        EndGameClientRpc(winnerId, loserId, false, killTime);
-        StartCoroutine(LoadGameOverSceneAfterDelay());
-    }
-
-
-    [ClientRpc]
-    private void EndGameClientRpc(ulong winnerId, ulong loserId, bool isTie, float finalTime)
-    {
-        if (isTie) { GameResultData.DidWin = false; }
-        else { GameResultData.DidWin = (NetworkManager.Singleton.LocalClientId == winnerId); }
-        GameResultData.MatchTime = finalTime;
-        Debug.Log($"Game Over! Local Client Won: {GameResultData.DidWin}, Final Time: {finalTime:F1}s");
-        SetPlayerInputEnabled(false);
-    }
-
-    private System.Collections.IEnumerator LoadGameOverSceneAfterDelay()
+    private IEnumerator LoadGameOverSceneAfterDelay()
     {
         yield return new WaitForSeconds(0.2f);
-        if (IsServer)
-        {
-            Debug.Log($"Server loading scene: {gameOverSceneName}");
-            SetGameObjectDiableClientRpc();
-            NetworkManager.Singleton.SceneManager.LoadScene(gameOverSceneName, LoadSceneMode.Single);
-        }
-    }
 
-    [ClientRpc]
-    public void SetGameObjectDiableClientRpc() 
-    {
-        foreach(var client in NetworkManager.Singleton.SpawnManager.GetConnectedPlayers())
-        {
-            NetworkManager.Singleton.SpawnManager.GetPlayerNetworkObject(client).gameObject.SetActive(false);
-        }
+        Debug.Log($"Loading scene: {gameOverSceneName}");
+
+        SceneManager.LoadScene(gameOverSceneName, LoadSceneMode.Single);
     }
 
     private void SetPlayerInputEnabled(bool isEnabled)
     {
-        if (NetworkManager.Singleton != null && NetworkManager.Singleton.LocalClient != null && NetworkManager.Singleton.LocalClient.PlayerObject != null)
-        {
-            TurretController turrentScript = NetworkManager.Singleton.LocalClient.PlayerObject.GetComponentInChildren<TurretController>();
-            GunController[] gunScripts = NetworkManager.Singleton.LocalClient.PlayerObject.GetComponentsInChildren<GunController>();
-            DynamicMoveProvider moveScript = NetworkManager.Singleton.LocalClient.PlayerObject.GetComponent<DynamicMoveProvider>();
+        // --- FIX 3 (Warnings) ---
+        // Replaced obsolete FindObjectOfType with FindAnyObjectByType
+        // and FindObjectsOfType with FindObjectsByType
+        TurretController turrentScript = FindAnyObjectByType<TurretController>();
 
-            if (moveScript != null)
-            {
-                moveScript.enabled = isEnabled;
-            }
-            foreach (var gun in gunScripts)
-            {
-                gun.enabled = isEnabled;
-            }
-            if (gunScripts != null)
-            {
-                turrentScript.enabled = isEnabled;
-            }
+        WeaponController[] gunScripts = FindObjectsByType<WeaponController>(FindObjectsSortMode.None);
+
+        DynamicMoveProvider moveScript = FindAnyObjectByType<DynamicMoveProvider>();
+        // --- END FIX ---
+
+        if (moveScript != null)
+        {
+            moveScript.enabled = isEnabled;
+        }
+
+        foreach (var gun in gunScripts)
+        {
+            gun.enabled = isEnabled;
+        }
+
+        if (turrentScript != null)
+        {
+            turrentScript.enabled = isEnabled;
         }
     }
 }

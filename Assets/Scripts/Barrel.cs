@@ -1,10 +1,6 @@
 using UnityEngine;
-using Unity.Netcode;
-using System.Collections.Generic; // Needed for List
-using JetBrains.Annotations;
 
-[RequireComponent(typeof(NetworkObject))]
-public class Barrel : NetworkBehaviour
+public class Barrel : MonoBehaviour
 {
     [Header("Explosion Settings")]
     [SerializeField] int damageAmt = 50;
@@ -15,95 +11,69 @@ public class Barrel : NetworkBehaviour
     [SerializeField] GameObject explosionEffectPrefab;
     [SerializeField] float effectDestroyTimer = 3f;
 
-    private NetworkVariable<int> currentHealth = new NetworkVariable<int>(
-        writePerm: NetworkVariableWritePermission.Server);
-
+    private int currentHealth;
     private bool exploded = false;
 
-    public override void OnNetworkSpawn()
+    void Start()
     {
-        if (IsServer)
+        currentHealth = startingHealth;
+        exploded = false;
+    }
+
+    public void TakeDamage(int damageAmount)
+    {
+        if (exploded || currentHealth <= 0) return;
+
+        currentHealth -= damageAmount;
+        Debug.Log($"Barrel took {damageAmount} damage. Health: {currentHealth}");
+
+        if (currentHealth <= 0)
         {
-            currentHealth.Value = startingHealth;
-            exploded = false;
+            Explode();
         }
     }
 
-    [ServerRpc(RequireOwnership = false)] 
-    public void TakeDamage_ServerRpc(int damageAmount)
-    {
-        if (!IsServer || exploded || currentHealth.Value <= 0) return;
-
-        currentHealth.Value -= damageAmount;
-        Debug.Log($"Barrel {NetworkObjectId} took {damageAmount} damage. Health: {currentHealth.Value}");
-
-        if (currentHealth.Value <= 0)
-        {
-            Explode_ServerRpc();
-        }
-    }
-
-
-    [ServerRpc(RequireOwnership = false)]
-    private void Explode_ServerRpc()
+    private void Explode()
     {
         if (exploded) return;
         exploded = true;
 
-        Debug.Log($"Barrel {NetworkObjectId} exploding on server.");
+        Debug.Log("Barrel exploding.");
 
+        // 1. Spawn the visual effect
+        if (explosionEffectPrefab != null)
+        {
+            GameObject instance = Instantiate(explosionEffectPrefab, transform.position, Quaternion.identity);
+            Destroy(instance, effectDestroyTimer);
+        }
+
+        // 2. Find and damage nearby objects
         Collider[] hitColliders = Physics.OverlapSphere(transform.position, blastRadius);
-        List<ulong> damagedPlayerIds = new List<ulong>();
-        List<ulong> damagedBarrelIds = new List<ulong>();
 
         foreach (Collider hitCollider in hitColliders)
         {
+            // --- UPDATED ---
+            // Look for a player/mech with Health
             Health playerHealth = hitCollider.GetComponent<Health>();
-            Barrel barellHealth = hitCollider.GetComponent<Barrel>();
             if (playerHealth != null)
             {
-                ulong ownerId = playerHealth.OwnerClientId;
-                if (!damagedPlayerIds.Contains(ownerId))
-                {
-                    Debug.Log($"Barrel explosion damaging player {ownerId}");
-                    playerHealth.TakeDamage(damageAmt);
-                    damagedPlayerIds.Add(ownerId);
-                }
+                Debug.Log($"Barrel explosion damaging player {hitCollider.name}");
+                playerHealth.TakeDamage(damageAmt);
             }
-            
-            if(barellHealth != null)
+
+            // Look for another barrel for chain reactions
+            Barrel barrelHealth = hitCollider.GetComponent<Barrel>();
+            if (barrelHealth != null && barrelHealth != this) // Don't make it explode itself again
             {
-                ulong barrelId = barellHealth.OwnerClientId;
-                if(!damagedBarrelIds.Contains(barrelId))
-                {
-                    barellHealth.TakeDamage_ServerRpc(damageAmt);
-                    damagedBarrelIds.Add(barrelId);
-                }
+                Debug.Log($"Barrel explosion damaging other barrel {hitCollider.name}");
+                barrelHealth.TakeDamage(damageAmt);
             }
+            // --- END OF UPDATED SECTION ---
         }
 
-        Explode_ClientRpc(transform.position);
-        if (NetworkObject != null && NetworkObject.IsSpawned)
-        {
-            NetworkObject.Despawn(true);
-        }
-        else
-        {
-            Destroy(gameObject);
-        }
+        // 3. Destroy this barrel
+        Destroy(gameObject);
     }
-
-    [ClientRpc]
-    private void Explode_ClientRpc(Vector3 explosionPosition)
-    {
-        Debug.Log($"Client {NetworkManager.Singleton.LocalClientId}: Playing explosion effect for barrel at {explosionPosition}");
-        if (explosionEffectPrefab != null)
-        {
-            GameObject instance = Instantiate(explosionEffectPrefab, explosionPosition, Quaternion.identity);
-            Destroy(instance, effectDestroyTimer);
-        }
-    }
-
 
     private void OnDrawGizmosSelected()
     {
