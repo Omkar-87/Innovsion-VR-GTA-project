@@ -1,143 +1,75 @@
 using UnityEngine;
-using UnityEngine.UI;
 using System.Collections;
-using UnityEngine.SceneManagement;
+using UnityEngine.UI; // For Slider, if you add it
+using UnityEngine.AI; // Required for NavMeshAgent
 
-// Changed from NetworkBehaviour to MonoBehaviour
 public class Health : MonoBehaviour
 {
-    [Header("Health Settings")]
-    public int maxHealth = 100;
-
-    // Changed from NetworkVariable to a private int
+    [SerializeField] int maxHealth = 100;
     private int currentHealth;
 
-    [Header("UI (Assign These in Inspector - Optional)")]
-    public Slider healtbarFP;
-    public Slider healthbarTP;
-    public Image hitEffect;
+    // This is an event that other scripts (like our AI) can listen to.
+    public delegate void DamageTakenDelegate();
+    public event DamageTakenDelegate OnDamaged;
 
-    public GameManager gameManager;
-    private Coroutine hitEffectCoroutine;
+    private bool isDead = false;
 
-    public void FindGameManager()
-    {
-        GameObject gmObject = GameObject.FindGameObjectWithTag("GameController");
-        if (gmObject != null)
-        {
-            gameManager = gmObject.GetComponent<GameManager>();
-        }
-    }
-
-    // Changed from OnNetworkSpawn to Start
     void Start()
     {
-        // Find the GameManager if it's not set
-        if (gameManager == null)
-        {
-            FindGameManager();
-        }
-
-        if (gameManager == null)
-        {
-            Debug.LogError($"[{gameObject.name}] GameManager component not found in scene!", this);
-        }
-
-        // Set health and update UI
         currentHealth = maxHealth;
-        UpdateHealthUI(currentHealth, currentHealth); // (previousValue, newValue)
-
-        if (healtbarFP != null) healtbarFP.maxValue = maxHealth;
-        if (healthbarTP != null) healthbarTP.maxValue = maxHealth;
     }
 
-    // This is the public method your WeaponController will call
+    // Helper property for other scripts to check if dead
+    public bool IsAlive()
+    {
+        return !isDead;
+    }
+
     public void TakeDamage(int damageAmount)
     {
-        if (currentHealth <= 0) return; // Already dead
+        if (isDead) return; // Already dead
 
-        int previousHealth = currentHealth;
         currentHealth -= damageAmount;
+        Debug.Log($"{gameObject.name} took {damageAmount} damage. Health: {currentHealth}");
 
-        if (currentHealth < 0) currentHealth = 0;
+        // Fire the OnDamaged event to notify listeners (our AI)
+        if (OnDamaged != null)
+        {
+            OnDamaged();
+        }
 
-        Debug.Log($"{gameObject.name} took {damageAmount} damage. New health: {currentHealth}");
-
-        // Manually call the UI update
-        UpdateHealthUI(previousHealth, currentHealth);
-
-        if (currentHealth <= 0 && previousHealth > 0)
+        if (currentHealth <= 0)
         {
             Die();
         }
     }
 
-    private void UpdateHealthUI(int previousValue, int newValue)
+    private void Die()
     {
-        if (healtbarFP != null)
+        isDead = true;
+        Debug.Log($"{gameObject.name} has died!");
+
+        // If this is an AI, we can disable its components
+        EnemyAI ai = GetComponent<EnemyAI>();
+        if (ai != null)
         {
-            healtbarFP.value = newValue;
-        }
-        if (healthbarTP != null)
-        {
-            healthbarTP.value = newValue;
+            ai.enabled = false;
+            if (GetComponent<NavMeshAgent>() != null) GetComponent<NavMeshAgent>().enabled = false;
+            if (GetComponent<Collider>() != null) GetComponent<Collider>().enabled = false;
         }
 
-        // Check if this script is on the local player by checking the camera/UI tags
-        // (A simple way to know if it's "our" UI)
-        bool isOurPlayer = (healtbarFP != null || hitEffect != null);
-
-        // If we took damage, show the hit effect
-        if (isOurPlayer && newValue < previousValue && newValue > 0 && hitEffect != null)
+        // If this is the Player, we'd tell the GameManager
+        if (gameObject.CompareTag("Player"))
         {
-            if (hitEffectCoroutine != null) StopCoroutine(hitEffectCoroutine);
-            hitEffectCoroutine = StartCoroutine(ShowHitEffect());
+            GameManager gm = FindAnyObjectByType<GameManager>();
+            if (gm != null)
+            {
+                gm.PlayerDied();
+            }
         }
+
+        // You could also just destroy the AI after a delay
+        // if (ai != null) Destroy(gameObject, 5f);
     }
-
-    IEnumerator ShowHitEffect()
-    {
-        if (hitEffect == null) yield break;
-
-        hitEffect.color = new Color(1f, 0f, 0f, 0.4f);
-        float duration = 0.5f;
-        float elapsed = 0f;
-
-        while (elapsed < duration)
-        {
-            elapsed += Time.deltaTime;
-            float alpha = Mathf.Lerp(0.4f, 0f, elapsed / duration);
-            hitEffect.color = new Color(hitEffect.color.r, hitEffect.color.g, hitEffect.color.b, alpha);
-            yield return null;
-        }
-        hitEffect.color = new Color(hitEffect.color.r, hitEffect.color.g, hitEffect.color.b, 0f);
-        hitEffectCoroutine = null;
-    }
-
-    void Die()
-    {
-        Debug.Log($"{gameObject.name} has died. Notifying GameManager.");
-
-        // We can just call the GameManager directly
-        if (gameManager != null)
-        {
-            // You will need to update your GameManager to have a public PlayerDied()
-            // or PlayerDied(ulong ownerId) method.
-            // For an offline game, you might not even need the ID.
-
-            // gameManager.PlayerDied(); // <--- Change this to match your offline GameManager
-        }
-        else
-        {
-            Debug.LogError($"[{gameObject.name}] Cannot notify GameManager of death - reference is null!");
-        }
-
-        var collider = GetComponent<Collider>();
-        if (collider != null) collider.enabled = false;
-
-        // You might want to disable the whole object or just the controls
-        // e.g., GetComponent<PlayerMovement>().enabled = false;
-    }
-
-    // Removed OnNetworkDespawn
 }
+
