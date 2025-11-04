@@ -4,21 +4,38 @@ using System.Collections;
 
 public class WeaponController : MonoBehaviour
 {
+    // Defines our two fire modes. (MOVED INSIDE THE CLASS)
+    private enum FireMode { Primary, Secondary }
+
     [Header("Core References")]
     public Transform aimTarget;
     public Transform firePoint;
     public Transform gunGraphicsTransform;
     public Camera mainCamera;
+    public AmmoDisplay ammoDisplay;
 
     [Header("Input Actions")]
-    public InputActionProperty shootAction;
+    public InputActionProperty shootActionPrimary;
+    public InputActionProperty shootActionSecondary;
     public InputActionProperty reloadAction;
 
-    [Header("Shooting Stats")]
+    // --- ADDED THIS SECTION BACK ---
+    [Header("Shared Shooting Stats")]
     public LayerMask shootableLayers;
-    public float fireRate = 10f;
     public float maxDistance = 100f;
-    public int damage = 2;
+    // --- END OF ADDED SECTION ---
+
+    [Header("Primary Fire Stats (e.g., Full-Auto)")]
+    public float fireRatePrimary = 10f;
+    public int damagePrimary = 2;
+    public GameObject muzzleFlashPrefabPrimary;
+    public GameObject impactEffectPrefabPrimary;
+
+    [Header("Secondary Fire Stats (e.g., Grenade)")]
+    public float fireRateSecondary = 1f;
+    public int damageSecondary = 20;
+    public GameObject muzzleFlashPrefabSecondary;
+    public GameObject impactEffectPrefabSecondary;
 
     [Header("Ammo")]
     public int maxAmmo = 50;
@@ -26,9 +43,15 @@ public class WeaponController : MonoBehaviour
     public float reloadTime = 1.5f;
     private bool isReloading = false;
 
-    [Header("Recoil (Applied to Graphics)")]
-    public float recoilKickback = 0.03f;
-    public float recoilUpKick = 2.0f;
+    [Header("Primary Recoil")]
+    public float recoilKickbackPrimary = 0.03f;
+    public float recoilUpKickPrimary = 2.0f;
+
+    [Header("Secondary Recoil")]
+    public float recoilKickbackSecondary = 0.1f;
+    public float recoilUpKickSecondary = 8.0f;
+
+    [Header("Shared Recoil Settings")]
     public float returnSpeed = 15f;
 
     [Header("Bobbing (Applied to Graphics)")]
@@ -43,8 +66,6 @@ public class WeaponController : MonoBehaviour
     private Coroutine cameraShakeCoroutine;
 
     [Header("Effects (Prefabs)")]
-    public GameObject muzzleFlashPrefab;
-    public GameObject impactEffectPrefab;
     public float destroyTimer = 1.5f;
 
     [Header("Haptic Feedback")]
@@ -54,7 +75,8 @@ public class WeaponController : MonoBehaviour
     private Coroutine stopRumbleCoroutine;
 
     // Internal state
-    private float nextFireTime = 0f;
+    private float nextFireTimePrimary = 0f;
+    private float nextFireTimeSecondary = 0f;
     private Vector3 graphicsOriginalLocalPosition;
     private Quaternion graphicsOriginalLocalRotation;
     private Vector3 shakeOffsetOriginalLocalPosition = Vector3.zero;
@@ -63,7 +85,6 @@ public class WeaponController : MonoBehaviour
     {
         currentAmmo = maxAmmo;
         isReloading = false;
-
         if (gunGraphicsTransform != null)
         {
             graphicsOriginalLocalPosition = gunGraphicsTransform.localPosition;
@@ -73,7 +94,6 @@ public class WeaponController : MonoBehaviour
         {
             Debug.LogError($"[{gameObject.name}] Gun Graphics Transform is not assigned!", this);
         }
-
         if (shakeOffsetTransform != null)
         {
             shakeOffsetOriginalLocalPosition = shakeOffsetTransform.localPosition;
@@ -82,11 +102,22 @@ public class WeaponController : MonoBehaviour
         {
             Debug.LogError($"[{gameObject.name}] Shake Offset Transform is not assigned!", this);
         }
-
         if (mainCamera == null)
         {
             mainCamera = Camera.main;
             if (mainCamera == null) Debug.LogWarning($"[{gameObject.name}] Main Camera not found/assigned. Camera checks might fail.", this);
+        }
+        if (ammoDisplay == null)
+        {
+            ammoDisplay = FindAnyObjectByType<AmmoDisplay>();
+        }
+        if (ammoDisplay != null)
+        {
+            ammoDisplay.UpdateAmmoText(currentAmmo);
+        }
+        else
+        {
+            Debug.LogWarning($"[{gameObject.name}] AmmoDisplay script is not assigned! UI will not update.", this);
         }
     }
 
@@ -111,31 +142,70 @@ public class WeaponController : MonoBehaviour
 
         if (isReloading) return;
 
-        if (shootAction.action.ReadValue<float>() > 0.1f && Time.time >= nextFireTime)
+        // Check for Primary Fire
+        if (shootActionPrimary.action.ReadValue<float>() > 0.1f && Time.time >= nextFireTimePrimary)
         {
             if (currentAmmo > 0)
             {
-                nextFireTime = Time.time + 1f / fireRate;
-                Shoot();
+                nextFireTimePrimary = Time.time + 1f / fireRatePrimary;
+                Shoot(FireMode.Primary, shootActionPrimary);
             }
-            else if (currentAmmo <= 0)
+            else if (currentAmmo <= 0 && !isReloading)
             {
-                // EMPTY...EMPTY SOUND
+                StartCoroutine(Reload_Local());
+            }
+        }
+        // Check for Secondary Fire
+        else if (shootActionSecondary.action.ReadValue<float>() > 0.1f && Time.time >= nextFireTimeSecondary)
+        {
+            if (currentAmmo > 0)
+            {
+                nextFireTimeSecondary = Time.time + 1f / fireRateSecondary;
+                Shoot(FireMode.Secondary, shootActionSecondary);
+            }
+            else if (currentAmmo <= 0 && !isReloading)
+            {
+                StartCoroutine(Reload_Local());
             }
         }
     }
 
-    void Shoot()
+    void Shoot(FireMode mode, InputActionProperty action)
     {
         if (gunGraphicsTransform == null || aimTarget == null || currentAmmo <= 0 || isReloading) return;
 
         currentAmmo--;
+        if (ammoDisplay != null) ammoDisplay.UpdateAmmoText(currentAmmo);
 
-        TriggerHaptics();
+        int damage;
+        float recoilKickback;
+        float recoilUpKick;
+        GameObject muzzleFlashPrefab;
+        GameObject impactEffectPrefab;
+
+        if (mode == FireMode.Primary)
+        {
+            damage = damagePrimary;
+            recoilKickback = recoilKickbackPrimary;
+            recoilUpKick = recoilUpKickPrimary;
+            muzzleFlashPrefab = muzzleFlashPrefabPrimary;
+            impactEffectPrefab = impactEffectPrefabPrimary;
+        }
+        else // Secondary
+        {
+            damage = damageSecondary;
+            recoilKickback = recoilKickbackSecondary;
+            recoilUpKick = recoilUpKickSecondary;
+            muzzleFlashPrefab = muzzleFlashPrefabSecondary;
+            impactEffectPrefab = impactEffectPrefabSecondary;
+        }
+
+        TriggerHaptics(action);
         TriggerCameraShake();
-        ApplyRecoil();
-        SpawnMuzzleFlash();
+        ApplyRecoil(recoilKickback, recoilUpKick);
+        SpawnMuzzleFlash(muzzleFlashPrefab);
 
+        // These variables are now visible again
         RaycastHit aimHit;
         Vector3 targetPoint;
         if (Physics.Raycast(aimTarget.position, aimTarget.forward, out aimHit, maxDistance, shootableLayers)) { targetPoint = aimHit.point; }
@@ -145,25 +215,19 @@ public class WeaponController : MonoBehaviour
         RaycastHit gunHit;
         if (firePoint != null && Physics.Raycast(firePoint.position, shootDirection, out gunHit, maxDistance, shootableLayers))
         {
-            SpawnImpactEffect(gunHit.point, Quaternion.LookRotation(gunHit.normal));
+            SpawnImpactEffect(gunHit.point, Quaternion.LookRotation(gunHit.normal), impactEffectPrefab);
 
-            // --- UPDATED ---
-            // Look for a Health component
             Health targetHealth = gunHit.transform.GetComponent<Health>();
             if (targetHealth != null)
             {
-                Debug.Log($"[{gameObject.name}] Locally hit Player {gunHit.transform.name}");
                 targetHealth.TakeDamage(damage);
             }
 
-            // Look for a Barrel component
             Barrel targetBarrel = gunHit.transform.GetComponent<Barrel>();
             if (targetBarrel != null)
             {
-                Debug.Log($"[{gameObject.name}] Locally hit Barrel {gunHit.transform.name}");
                 targetBarrel.TakeDamage(damage);
             }
-            // --- END OF UPDATED SECTION ---
         }
     }
 
@@ -171,14 +235,12 @@ public class WeaponController : MonoBehaviour
     {
         isReloading = true;
         Debug.Log($"[{gameObject.name}] Starting local reload sequence...");
-
         yield return new WaitForSeconds(reloadTime);
-
         currentAmmo = maxAmmo;
         isReloading = false;
+        if (ammoDisplay != null) ammoDisplay.UpdateAmmoText(currentAmmo);
         Debug.Log($"[{gameObject.name}] Local reload sequence finished. Ammo refilled.");
     }
-
 
     void ApplyBobbingAndRecoilReturn()
     {
@@ -190,11 +252,11 @@ public class WeaponController : MonoBehaviour
         gunGraphicsTransform.localRotation = Quaternion.Slerp(gunGraphicsTransform.localRotation, graphicsOriginalLocalRotation, Time.deltaTime * returnSpeed);
     }
 
-    void ApplyRecoil()
+    void ApplyRecoil(float kickback, float upKick)
     {
         if (gunGraphicsTransform == null) return;
-        gunGraphicsTransform.localPosition -= gunGraphicsTransform.forward * recoilKickback;
-        gunGraphicsTransform.localRotation *= Quaternion.Euler(-recoilUpKick, Random.Range(-recoilUpKick * 0.5f, recoilUpKick * 0.5f), 0);
+        gunGraphicsTransform.localPosition -= gunGraphicsTransform.forward * kickback;
+        gunGraphicsTransform.localRotation *= Quaternion.Euler(-upKick, Random.Range(-upKick * 0.5f, upKick * 0.5f), 0);
     }
 
     void TriggerCameraShake()
@@ -213,32 +275,27 @@ public class WeaponController : MonoBehaviour
     IEnumerator ShakeCameraOffset()
     {
         if (shakeOffsetTransform == null) yield break;
-
         float elapsed = 0.0f;
-
         while (elapsed < shakeDuration)
         {
             float x = Random.Range(-1f, 1f) * shakeMagnitude;
             float y = Random.Range(-1f, 1f) * shakeMagnitude;
-
             if (shakeOffsetTransform != null)
                 shakeOffsetTransform.localPosition = shakeOffsetOriginalLocalPosition + new Vector3(x, y, 0);
             else
                 yield break;
-
             elapsed += Time.deltaTime;
             yield return null;
         }
-
         if (shakeOffsetTransform != null) shakeOffsetTransform.localPosition = shakeOffsetOriginalLocalPosition;
         cameraShakeCoroutine = null;
     }
 
-    private void SpawnMuzzleFlash()
+    private void SpawnMuzzleFlash(GameObject prefab)
     {
-        if (firePoint != null && muzzleFlashPrefab != null)
+        if (firePoint != null && prefab != null)
         {
-            SpawnEffect(muzzleFlashPrefab, firePoint.position, firePoint.rotation);
+            SpawnEffect(prefab, firePoint.position, firePoint.rotation, firePoint);
         }
         else
         {
@@ -246,11 +303,11 @@ public class WeaponController : MonoBehaviour
         }
     }
 
-    private void SpawnImpactEffect(Vector3 position, Quaternion rotation)
+    private void SpawnImpactEffect(Vector3 position, Quaternion rotation, GameObject prefab)
     {
-        if (impactEffectPrefab != null)
+        if (prefab != null)
         {
-            SpawnEffect(impactEffectPrefab, position, rotation);
+            SpawnEffect(prefab, position, rotation);
         }
         else
         {
@@ -269,9 +326,9 @@ public class WeaponController : MonoBehaviour
         Destroy(instance, destroyTimer);
     }
 
-    private void TriggerHaptics()
+    private void TriggerHaptics(InputActionProperty action)
     {
-        var device = shootAction.action.activeControl?.device;
+        var device = action.action.activeControl?.device;
         if (device is Gamepad gamepad)
         {
             if (stopRumbleCoroutine != null) StopCoroutine(stopRumbleCoroutine);
@@ -282,11 +339,9 @@ public class WeaponController : MonoBehaviour
     private IEnumerator RumbleCoroutine(Gamepad gamepad, float intensity, float duration)
     {
         if (gamepad == null) yield break;
-
         gamepad.SetMotorSpeeds(intensity, intensity);
         yield return new WaitForSeconds(duration);
         if (gamepad != null && gamepad.added) gamepad.SetMotorSpeeds(0f, 0f);
-
         stopRumbleCoroutine = null;
     }
 }
