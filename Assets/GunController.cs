@@ -3,30 +3,29 @@ using UnityEngine.InputSystem;
 using System.Collections;
 using Unity.Netcode;
 
-
 public class GunController : NetworkBehaviour
 {
     [Header("Core References")]
-    public Transform aimTarget;            
-    public Transform firePoint;            
-    public Transform gunGraphicsTransform; 
-    public Camera mainCamera;              
+    public Transform aimTarget;
+    public Transform firePoint;
+    public Transform gunGraphicsTransform;
+    public Camera mainCamera;
 
     [Header("Input Actions")]
     public InputActionProperty shootAction;
     public InputActionProperty reloadAction;
 
     [Header("Shooting Stats")]
-    public LayerMask shootableLayers;   
-    public float fireRate = 10f;        
+    public LayerMask shootableLayers;
+    public float fireRate = 10f;
     public float maxDistance = 100f;
-    public int damage = 2;              
+    public int damage = 2;
 
     [Header("Ammo")]
     public int maxAmmo = 50;
-    public int currentAmmo;             
+    public int currentAmmo;
     public float reloadTime = 1.5f;
-    private bool isReloading = false;   
+    private bool isReloading = false;
 
     [Header("Recoil (Applied to Graphics)")]
     public float recoilKickback = 0.03f;
@@ -45,9 +44,9 @@ public class GunController : NetworkBehaviour
     private Coroutine cameraShakeCoroutine;
 
     [Header("Effects (Prefabs)")]
-    public GameObject muzzleFlashPrefab; 
+    public GameObject muzzleFlashPrefab;
     public GameObject impactEffectPrefab;
-    public float destroyTimer = 1.5f;    
+    public float destroyTimer = 1.5f;
 
     [Header("Haptic Feedback")]
     [Range(0f, 1f)]
@@ -59,6 +58,7 @@ public class GunController : NetworkBehaviour
     public AudioSource gunAudioSource;
     public AudioClip shootClip;
     public AudioClip reloadClip;
+
     // Internal state
     private float nextFireTime = 0f;
     private Vector3 graphicsOriginalLocalPosition;
@@ -150,7 +150,7 @@ public class GunController : NetworkBehaviour
         Vector3 shootDirection = (targetPoint - firePoint.position).normalized;
 
 
-        bool didHitObject = false; 
+        bool didHitObject = false;
         Vector3 hitPoint = Vector3.zero;
         Vector3 hitNormal = Vector3.forward;
         ulong hitPlayerId = 0;
@@ -183,7 +183,7 @@ public class GunController : NetworkBehaviour
                 Debug.Log($"[{gameObject.name}] Locally hit {gunHit.transform.name}, but it's not a Player or Barrel with NetworkObject.");
             }
         }
-        
+
         gunAudioSource.PlayOneShot(shootClip);
         ShootServerRpc(didHitObject, hitPoint, Quaternion.LookRotation(hitNormal), hitPlayerId, hitBarrelId);
     }
@@ -311,36 +311,7 @@ public class GunController : NetworkBehaviour
         cameraShakeCoroutine = null;
     }
 
-    [ServerRpc]
-    private void ShootServerRpc(bool didHit, Vector3 hitPoint, Quaternion hitRotation, ulong hitTargetId)
-    {
-        SpawnMuzzleFlashClientRpc();
-
-        if (didHit)
-        {
-            SpawnImpactEffectClientRpc(hitPoint, hitRotation);
-
-            if (hitTargetId != 0)
-            {
-                ApplyDamage(hitTargetId, damage);
-            }
-        }
-    }
-
-    private void ApplyDamage(ulong targetId, int damageAmount)
-    {
-        if (!IsServer) return;
-        if (NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(targetId, out NetworkObject targetObject))
-        {
-            Health targetHealth = targetObject.GetComponent<Health>();
-            if (targetHealth != null)
-            {
-                targetHealth.TakeDamage(damageAmount);
-            }
-
-
-        }
-    }
+    // ---------- DELETED THE DUPLICATE METHODS THAT WERE HERE ----------
 
     [ClientRpc]
     private void SpawnMuzzleFlashClientRpc()
@@ -393,13 +364,11 @@ public class GunController : NetworkBehaviour
     private IEnumerator RumbleCoroutine(Gamepad gamepad, float intensity, float duration)
     {
         if (gamepad == null) yield break;
-    
-            gamepad.SetMotorSpeeds(intensity, intensity);
-            yield return new WaitForSeconds(duration);
-            if (gamepad != null && gamepad.added) gamepad.SetMotorSpeeds(0f, 0f);
-        
 
-            stopRumbleCoroutine = null;
-        
+        gamepad.SetMotorSpeeds(intensity, intensity);
+        yield return new WaitForSeconds(duration);
+        if (gamepad != null && gamepad.added) gamepad.SetMotorSpeeds(0f, 0f);
+
+        stopRumbleCoroutine = null;
     }
 }
