@@ -3,6 +3,7 @@ using UnityEngine.InputSystem;
 using System.Collections;
 using Unity.Netcode;
 
+
 public class GunController : NetworkBehaviour
 {
     [Header("Core References")]
@@ -54,6 +55,10 @@ public class GunController : NetworkBehaviour
     public float hapticDuration = 0.05f;
     private Coroutine stopRumbleCoroutine;
 
+    [Header("Audio")]
+    public AudioSource gunAudioSource;
+    public AudioClip shootClip;
+    public AudioClip reloadClip;
     // Internal state
     private float nextFireTime = 0f;
     private Vector3 graphicsOriginalLocalPosition;
@@ -179,7 +184,7 @@ public class GunController : NetworkBehaviour
             }
         }
         
-
+        gunAudioSource.PlayOneShot(shootClip);
         ShootServerRpc(didHitObject, hitPoint, Quaternion.LookRotation(hitNormal), hitPlayerId, hitBarrelId);
     }
 
@@ -243,7 +248,7 @@ public class GunController : NetworkBehaviour
     {
         isReloading = true;
         Debug.Log($"[{gameObject.name}] Starting local reload sequence...");
-
+        gunAudioSource.PlayOneShot(reloadClip);
         yield return new WaitForSeconds(reloadTime);
 
         currentAmmo = maxAmmo;
