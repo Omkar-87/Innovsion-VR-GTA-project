@@ -11872,6 +11872,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   ShowTopMostFoldoutHeaderGroup: 1
+  Machine_Gun: {fileID: 8300000, guid: 5839fa62f76198c4081ff2e1c79995a4, type: 3}
+  Reload_Sound: {fileID: 8300000, guid: 3d2f5c75c0ec515458d13ff5a025d5b8, type: 3}
   aimTarget: {fileID: 985704540787621723}
   firePoint: {fileID: 6117573637001166590}
   gunGraphicsTransform: {fileID: 4698770667933510859}
@@ -19501,6 +19503,7 @@ MonoBehaviour:
   healtbarFP: {fileID: 431217589346183063}
   healthbarTP: {fileID: 1434424280894146401}
   hitEffect: {fileID: 8332586975476535313}
+  Explosion_Audio: {fileID: 8300000, guid: 3ba0c23c83cd62b43a2cc95d9165f318, type: 3}
   gameManager: {fileID: 0}
 --- !u!114 &4213722067789009667
 MonoBehaviour:
@@ -29107,6 +29110,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   ShowTopMostFoldoutHeaderGroup: 1
+  Machine_Gun: {fileID: 8300000, guid: 5839fa62f76198c4081ff2e1c79995a4, type: 3}
+  Reload_Sound: {fileID: 8300000, guid: 3d2f5c75c0ec515458d13ff5a025d5b8, type: 3}
   aimTarget: {fileID: 985704540787621723}
   firePoint: {fileID: 8482485070272245253}
   gunGraphicsTransform: {fileID: 4698770667933510859}
