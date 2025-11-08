@@ -11919,7 +11919,7 @@ MonoBehaviour:
   shakeDuration: 0.08
   shakeMagnitude: 0.01
   muzzleFlashPrefab: {fileID: 1782395880954752, guid: b47e0a28928b0704890c46f832d04c77, type: 3}
-  impactEffectPrefab: {fileID: 100006, guid: 7c442b9b6852b8a4f93306f3d154d471, type: 3}
+  impactEffectPrefab: {fileID: 100008, guid: 7075bd5fe1480184695a32611c15da57, type: 3}
   destroyTimer: 1
   hapticIntensity: 1
   hapticDuration: 1
@@ -29240,10 +29240,10 @@ MonoBehaviour:
   shootableLayers:
     serializedVersion: 2
     m_Bits: 4294967295
-  fireRate: 5
-  maxDistance: 100
-  damage: 2
-  maxAmmo: 50
+  fireRate: 4
+  maxDistance: 80
+  damage: 4
+  maxAmmo: 15
   currentAmmo: 0
   reloadTime: 1.5
   recoilKickback: 0.05

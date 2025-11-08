@@ -1836,8 +1836,8 @@ MonoBehaviour:
   countdownText: {fileID: 1696768876}
   countdownPanel: {fileID: 1733118464}
   matchTimerText: {fileID: 1487337843}
-  countdownDuration: 3
-  matchDuration: 60
+  countdownDuration: 5
+  matchDuration: 180
   gameOverSceneName: Round Over
 --- !u!82 &1708737178
 AudioSource:
